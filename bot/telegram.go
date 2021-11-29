@@ -2,79 +2,92 @@ package bot
 
 import (
 	"fmt"
+
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 type BotMessage struct {
-	Command string
-	Text string
+	Command  string
+	Text     string
 	FileName string
-	FileUrl string
-	source *tgbotapi.Message
+	FileUrl  string
+	source   *tgbotapi.Message
 }
 
 var API_TOKEN string
 
 func RequestUpdates(received chan BotMessage) {
 	bot, err := tgbotapi.NewBotAPI(API_TOKEN)
-    if err != nil {
-        panic(err)
-    }
+	if err != nil {
+		panic(err)
+	}
 
-    bot.Debug = true
+	bot.Debug = true
 
-    // Create a new UpdateConfig struct with an offset of 0. Offsets are used
-    // to make sure Telegram knows we've handled previous values and we don't
-    // need them repeated.
-    updateConfig := tgbotapi.NewUpdate(0)
+	// Create a new UpdateConfig struct with an offset of 0. Offsets are used
+	// to make sure Telegram knows we've handled previous values and we don't
+	// need them repeated.
+	updateConfig := tgbotapi.NewUpdate(0)
 
-    // Tell Telegram we should wait up to 30 seconds on each request for an
-    // update. This way we can get information just as quickly as making many
-    // frequent requests without having to send nearly as many.
-    updateConfig.Timeout = 30
+	// Tell Telegram we should wait up to 30 seconds on each request for an
+	// update. This way we can get information just as quickly as making many
+	// frequent requests without having to send nearly as many.
+	updateConfig.Timeout = 30
 
-    // Start polling Telegram for updates.
-    updates := bot.GetUpdatesChan(updateConfig)
+	// Start polling Telegram for updates.
+	updates := bot.GetUpdatesChan(updateConfig)
 
-    // Let's go through each update that we're getting from Telegram.
-    for update := range updates {
-        // Telegram can send many types of updates depending on what your Bot
-        // is up to. We only want to look at messages for now, so we can
-        // discard any other updates.
-        if update.Message == nil {
+	// Let's go through each update that we're getting from Telegram.
+	for update := range updates {
+		// Telegram can send many types of updates depending on what your Bot
+		// is up to. We only want to look at messages for now, so we can
+		// discard any other updates.
+		if update.Message == nil {
 			fmt.Println("update without message")
-            continue
-        }
+			continue
+		}
 
 		if update.Message.Document != nil {
 			fmt.Println("document ", update.Message.Document.FileID)
-			fileUrl,error:=bot.GetFileDirectURL(update.Message.Document.FileID)
-			if error!=nil {
+			fileUrl, error := bot.GetFileDirectURL(update.Message.Document.FileID)
+			if error != nil {
 				fmt.Println("error get url ", error)
 				continue
 			}
 
 			fmt.Println("doc url ", fileUrl)
-			received <- BotMessage {
-				Command: "FILE",
-				Text: fileUrl,
+			received <- BotMessage{
+				Command:  "FILE",
+				Text:     fileUrl,
 				FileName: update.Message.Document.FileName,
-				FileUrl: fileUrl,
-				source: update.Message }
+				FileUrl:  fileUrl,
+				source:   update.Message}
+		} else if len(update.Message.Entities) > 0 && update.Message.Entities[0].Type == "bot_command" {
+			fmt.Println("search for ", update.Message.Text)
+			received <- BotMessage{
+				Command: "DOWNLOAD_BY_ID",
+				Text:    update.Message.Text[1:],
+				source:  update.Message}
+		} else {
+			fmt.Println("search for ", update.Message.Text)
+			received <- BotMessage{
+				Command: "SEARCH",
+				Text:    update.Message.Text,
+				source:  update.Message}
 		}
-    }
+	}
 }
 
 type OutMessage struct {
 	OriginalMessage BotMessage
-	Text string
+	Text            string
 }
 
 func Sender(sendChannel chan OutMessage) {
 	bot, err := tgbotapi.NewBotAPI(API_TOKEN)
-    if err != nil {
-        panic(err)
-    }
+	if err != nil {
+		panic(err)
+	}
 
 	for toSend := range sendChannel {
 		telegramMessage := toSend.OriginalMessage.source

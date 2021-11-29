@@ -6,6 +6,8 @@ import (
 )
 
 func TestFolderNotSet(t *testing.T) {
+	os.Setenv("TORRENT_FOLDER", "")
+	os.Setenv("TELEGRAM_TOKEN", "")
 	_,error:=Read()
 	if error == nil {
 		t.Fatalf("expected error")

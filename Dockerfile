@@ -2,9 +2,13 @@
 
 FROM golang:1.16-alpine
 
-RUN apk add --no-cache git
-RUN git clone https://github.com/karabaralex/TelegramDownloaderBot.git
-WORKDIR TelegramDownloaderBot
-# RUN go mod download
+WORKDIR /app
+
+COPY . .
+RUN go mod download
+
 RUN go build -o /bot
+
+EXPOSE 8080
+
 CMD [ "/bot" ]
