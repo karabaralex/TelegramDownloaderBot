@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"strconv"
 
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/text/encoding/charmap"
@@ -85,7 +86,33 @@ func SearchItems(what string) ([]TorrentItem, error) {
 	}
 
 	defer res.Body.Close()
-	return parseItemListPage(res.Body)
+	items, err := parseItemListPage(res.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	sortListOfTorrentsBySeeders(items)
+	return items, nil
+}
+
+func sortListOfTorrentsBySeeders(items []TorrentItem) {
+	for i := 0; i < len(items); i++ {
+		for j := i + 1; j < len(items); j++ {
+			if seedsToInt(items[i].Seeds) < seedsToInt(items[j].Seeds) {
+				items[i], items[j] = items[j], items[i]
+			}
+		}
+	}
+}
+
+// convert string number to number
+func seedsToInt(s string) int {
+	i, err := strconv.Atoi(s)
+	if err != nil {
+		// return max int
+		return 2147483647
+	}
+	return i
 }
 
 func searchCall(what string) string {
@@ -134,7 +161,8 @@ func parseItemListPage(body io.Reader) ([]TorrentItem, error) {
 
 	rows := doc.Find(".hl-tr")
 	if len(rows.Nodes) == 0 {
-		return nil, errors.New("nothing found")
+		// return empty list
+		return items, nil
 	}
 
 	// Find the items items

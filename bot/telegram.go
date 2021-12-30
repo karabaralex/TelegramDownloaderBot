@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -16,12 +17,21 @@ type BotMessage struct {
 
 var API_TOKEN string
 
-func RequestUpdates(received chan BotMessage) {
+// create bot, print error if any, do not panic
+// retry if error
+func createBot() *tgbotapi.BotAPI {
 	bot, err := tgbotapi.NewBotAPI(API_TOKEN)
 	if err != nil {
-		panic(err)
+		fmt.Println("error create bot ", err)
+		fmt.Println("retry in 15 seconds")
+		time.Sleep(time.Second * 15)
+		return createBot()
 	}
+	return bot
+}
 
+func RequestUpdates(received chan BotMessage) {
+	bot := createBot()
 	bot.Debug = true
 
 	// Create a new UpdateConfig struct with an offset of 0. Offsets are used
@@ -63,11 +73,20 @@ func RequestUpdates(received chan BotMessage) {
 				FileUrl:  fileUrl,
 				source:   update.Message}
 		} else if len(update.Message.Entities) > 0 && update.Message.Entities[0].Type == "bot_command" {
-			fmt.Println("search for ", update.Message.Text)
-			received <- BotMessage{
-				Command: "DOWNLOAD_BY_ID",
-				Text:    update.Message.Text[1:],
-				source:  update.Message}
+			// if text starts with /watch
+			if update.Message.Text == "/watch" {
+				fmt.Println("watch")
+				received <- BotMessage{
+					Command: "WATCH",
+					Text:    update.Message.Text,
+					source:  update.Message}
+			} else {
+				fmt.Println("search for ", update.Message.Text)
+				received <- BotMessage{
+					Command: "DOWNLOAD_BY_ID",
+					Text:    update.Message.Text[1:],
+					source:  update.Message}
+			}
 		} else {
 			fmt.Println("search for ", update.Message.Text)
 			received <- BotMessage{
@@ -84,10 +103,7 @@ type OutMessage struct {
 }
 
 func Sender(sendChannel chan OutMessage) {
-	bot, err := tgbotapi.NewBotAPI(API_TOKEN)
-	if err != nil {
-		panic(err)
-	}
+	bot := createBot()
 
 	for toSend := range sendChannel {
 		telegramMessage := toSend.OriginalMessage.source

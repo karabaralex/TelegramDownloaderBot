@@ -25,6 +25,11 @@ func DownloadTorrentByPostId(channel chan OperationResult, id int, topicId strin
 	channel <- OperationResult{Id: id, Text: "scheduled"}
 }
 
+func WatchTorrent(channel chan OperationResult, id int, what string) {
+	fmt.Printf("Watching %s\n", what)
+	channel <- OperationResult{Id: id, Text: fmt.Sprintf("watching %s", what)}
+}
+
 func SearchTorrent(channel chan OperationResult, id int, what string) {
 	items, err := rutracker.SearchItems(what)
 	if err != nil {

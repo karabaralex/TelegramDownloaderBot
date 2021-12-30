@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	fmt.Println("Telegram downloader ver 2")
+	fmt.Println("Telegram downloader ver 3")
 	envConfig, envError := config.Read()
 	if envError != nil {
 		fmt.Println("Load config error ", envError)
@@ -44,32 +44,44 @@ func main() {
 				destinationPath := config.CreateFilePath(envConfig.TorrentFileFolder, message.Text+".torrent")
 				go operations.DownloadTorrentByPostId(operationChannel, idCounter, message.Text, destinationPath)
 			}
+			if message.Command == "WATCH" {
+				go operations.WatchTorrent(operationChannel, idCounter, message.Text)
+			}
 		case result := <-operationChannel:
 			message := idToMessage[result.Id]
-			if result.Items == nil {
+			if result.Err != nil {
 				fmt.Println(result.Text)
 				reply := bot.OutMessage{OriginalMessage: message, Text: result.Text}
 				outputChannel <- reply
 			} else {
 				fmt.Println("search result")
-				MAX_RES := 15
-				if MAX_RES > len(result.Items) {
-					MAX_RES = len(result.Items)
+				// check if items nil or empty
+				if result.Items == nil || len(result.Items) == 0 {
+					reply := bot.OutMessage{OriginalMessage: message, Text: fmt.Sprintf("No results, watch /watch%s", message.Text)}
+					outputChannel <- reply
+				} else {
+					convertItemsToText(result.Items, outputChannel, message)
 				}
-
-				lines := ""
-				for i := 0; i < MAX_RES; i++ {
-					lines = lines + fmt.Sprintf("%s\nSize:%s,Seeds:%s\n/%s\n\n",
-						result.Items[i].Title,
-						result.Items[i].Size,
-						result.Items[i].Seeds,
-						result.Items[i].TopicId)
-				}
-
-				fmt.Println(lines)
-				reply := bot.OutMessage{OriginalMessage: message, Text: lines}
-				outputChannel <- reply
 			}
 		}
 	}
+}
+
+func convertItemsToText(items []rutracker.TorrentItem, outputChannel chan bot.OutMessage, message bot.BotMessage) {
+	MAX_RES := 15
+	if MAX_RES > len(items) {
+		MAX_RES = len(items)
+	}
+
+	lines := ""
+	for i := 0; i < MAX_RES; i++ {
+		lines = lines + fmt.Sprintf("%s\nSize:%s,Seeds:%s\n/%s\n\n",
+			items[i].Title,
+			items[i].Size,
+			items[i].Seeds,
+			items[i].TopicId)
+	}
+
+	reply := bot.OutMessage{OriginalMessage: message, Text: lines}
+	outputChannel <- reply
 }

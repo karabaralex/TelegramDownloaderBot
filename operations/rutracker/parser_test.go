@@ -24,8 +24,8 @@ func TestEmptySearchResultList(t *testing.T) {
 	if len(items) != 0 {
 		t.Fatalf("expected 0, actual %d", len(items))
 	}
-	if err == nil {
-		t.Fatalf("expected error")
+	if err != nil {
+		t.Fatalf("no error expected")
 	}
 }
 
