@@ -2,13 +2,13 @@ package bot
 
 import (
 	"fmt"
+	"regexp"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-type BotMessage struct {
-	Command  string
+type Info struct {
 	Text     string
 	FileName string
 	FileUrl  string
@@ -30,7 +30,80 @@ func createBot() *tgbotapi.BotAPI {
 	return bot
 }
 
-func RequestUpdates(received chan BotMessage) {
+type Hanlder func(message *Info)
+
+type Matcher interface {
+	match(update *tgbotapi.Update) bool
+}
+
+type CommandMatcher struct {
+	regex string
+}
+
+type TextMatcher struct {
+	regex string
+}
+type FileNameMatcher struct {
+}
+
+// create new CommandMatcher
+func NewCommandMatcher(regex string) *CommandMatcher {
+	return &CommandMatcher{regex: "^" + regex + "$"}
+}
+
+func NewTextMatcher(regex string) *TextMatcher {
+	return &TextMatcher{regex: "^" + regex + "$"}
+}
+
+func NewFileNameMatcher() *FileNameMatcher {
+	return &FileNameMatcher{}
+}
+
+var pair = make(map[Matcher]Hanlder)
+
+// add handler to list
+func AddHandler(matcher Matcher, handler Hanlder) {
+	pair[matcher] = handler
+}
+
+func findHandlerForUpdate(update *tgbotapi.Update) (Hanlder, bool) {
+	// iterate through pairs of matcher-handler
+	for matcher, handler := range pair {
+		if matcher.match(update) {
+			return handler, true
+		}
+	}
+
+	return nil, false
+}
+
+func (matcher *CommandMatcher) match(update *tgbotapi.Update) bool {
+	if len(update.Message.Entities) > 0 && update.Message.Entities[0].Type == "bot_command" {
+		// check if matcher.regex match update.Message.Text
+		return regexp.MustCompile(matcher.regex).MatchString(update.Message.Text)
+	}
+
+	return false
+}
+
+func (matcher *TextMatcher) match(update *tgbotapi.Update) bool {
+	// check not entity with type bot_command
+	if len(update.Message.Entities) > 0 && update.Message.Entities[0].Type == "bot_command" {
+		return false
+	}
+
+	if update.Message.Document != nil {
+		return false
+	}
+
+	return regexp.MustCompile(matcher.regex).MatchString(update.Message.Text)
+}
+
+func (matcher *FileNameMatcher) match(update *tgbotapi.Update) bool {
+	return update.Message.Document != nil
+}
+
+func RequestUpdates() {
 	bot := createBot()
 	bot.Debug = true
 
@@ -57,48 +130,75 @@ func RequestUpdates(received chan BotMessage) {
 			continue
 		}
 
+		// check if matchers match
+		handler, ok := findHandlerForUpdate(&update)
+		if !ok {
+			fmt.Println("no handler for update")
+			continue
+		}
+
+		var fileUrl string
+		var fileName string
+
 		if update.Message.Document != nil {
-			fmt.Println("document ", update.Message.Document.FileID)
-			fileUrl, error := bot.GetFileDirectURL(update.Message.Document.FileID)
-			if error != nil {
-				fmt.Println("error get url ", error)
+			var err error = nil
+			fileUrl, err = bot.GetFileDirectURL(update.Message.Document.FileID)
+			fileName = update.Message.Document.FileName
+			if err != nil {
+				fmt.Println("error get url ", err)
 				continue
 			}
-
-			fmt.Println("doc url ", fileUrl)
-			received <- BotMessage{
-				Command:  "FILE",
-				Text:     fileUrl,
-				FileName: update.Message.Document.FileName,
-				FileUrl:  fileUrl,
-				source:   update.Message}
-		} else if len(update.Message.Entities) > 0 && update.Message.Entities[0].Type == "bot_command" {
-			// if text starts with /watch
-			if update.Message.Text == "/watch" {
-				fmt.Println("watch")
-				received <- BotMessage{
-					Command: "WATCH",
-					Text:    update.Message.Text,
-					source:  update.Message}
-			} else {
-				fmt.Println("search for ", update.Message.Text)
-				received <- BotMessage{
-					Command: "DOWNLOAD_BY_ID",
-					Text:    update.Message.Text[1:],
-					source:  update.Message}
-			}
-		} else {
-			fmt.Println("search for ", update.Message.Text)
-			received <- BotMessage{
-				Command: "SEARCH",
-				Text:    update.Message.Text,
-				source:  update.Message}
 		}
+
+		handler(&Info{
+			Text:     update.Message.Text,
+			FileName: fileName,
+			FileUrl:  fileUrl,
+			source:   update.Message,
+		})
+
+		// if update.Message.Document != nil {
+		// 	fmt.Println("document ", update.Message.Document.FileID)
+		// 	fileUrl, error := bot.GetFileDirectURL(update.Message.Document.FileID)
+		// 	if error != nil {
+		// 		fmt.Println("error get url ", error)
+		// 		continue
+		// 	}
+
+		// 	fmt.Println("doc url ", fileUrl)
+		// 	received <- BotMessage{
+		// 		Command:  "FILE",
+		// 		Text:     fileUrl,
+		// 		FileName: update.Message.Document.FileName,
+		// 		FileUrl:  fileUrl,
+		// 		source:   update.Message}
+		// } else if len(update.Message.Entities) > 0 && update.Message.Entities[0].Type == "bot_command" {
+		// 	// if text starts with /watch
+		// 	if update.Message.Text == "/watch" {
+		// 		fmt.Println("watch")
+		// 		received <- BotMessage{
+		// 			Command: "WATCH",
+		// 			Text:    update.Message.Text,
+		// 			source:  update.Message}
+		// 	} else {
+		// 		fmt.Println("search for ", update.Message.Text)
+		// 		received <- BotMessage{
+		// 			Command: "DOWNLOAD_BY_ID",
+		// 			Text:    update.Message.Text[1:],
+		// 			source:  update.Message}
+		// 	}
+		// } else {
+		// 	fmt.Println("search for ", update.Message.Text)
+		// 	received <- BotMessage{
+		// 		Command: "SEARCH",
+		// 		Text:    update.Message.Text,
+		// 		source:  update.Message}
+		// }
 	}
 }
 
 type OutMessage struct {
-	OriginalMessage BotMessage
+	OriginalMessage *Info
 	Text            string
 }
 
@@ -117,13 +217,14 @@ func Sender(sendChannel chan OutMessage) {
 		// set fields on the `MessageConfig`.
 		msg.ReplyToMessageID = telegramMessage.MessageID
 
-		// Okay, we're sending our message off! We don't care about the message
-		// we just sent, so we'll discard it.
-		if _, err := bot.Send(msg); err != nil {
-			// Note that panics are a bad way to handle errors. Telegram can
-			// have service outages or network errors, you should retry sending
-			// messages or more gracefully handle failures.
-			panic(err)
+		for i := 0; i < 3; i++ {
+			_, err := bot.Send(msg)
+			if err != nil {
+				fmt.Println("error send message ", err)
+				time.Sleep(time.Second * 3)
+				continue
+			}
+			break
 		}
 	}
 }

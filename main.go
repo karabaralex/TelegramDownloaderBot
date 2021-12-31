@@ -20,35 +20,29 @@ func main() {
 	rutracker.USER_NAME = envConfig.RuTrackerUserName
 	rutracker.USER_PASSWORD = envConfig.RuTrackerPassword
 	bot.API_TOKEN = envConfig.TelegramBotToken
-	idCounter := 0
-	idToMessage := make(map[int]bot.BotMessage)
-	inputChannel := make(chan bot.BotMessage)
+
 	outputChannel := make(chan bot.OutMessage)
-	operationChannel := make(chan operations.OperationResult)
-	go bot.Sender(outputChannel)
-	go bot.RequestUpdates(inputChannel)
-	for {
-		select {
-		case message := <-inputChannel:
-			fmt.Println(message.Text)
-			idCounter++
-			idToMessage[idCounter] = message
-			if message.Command == "FILE" {
-				destinationPath := config.CreateFilePath(envConfig.TorrentFileFolder, message.FileName)
-				go operations.Download(operationChannel, idCounter, message.FileUrl, destinationPath)
+
+	// add bot handlers
+	bot.AddHandler(bot.NewCommandMatcher("/[0-9]+"), func(message *bot.Info) {
+		fmt.Println("Command /[0-9]+", message.Text)
+		destinationPath := config.CreateFilePath(envConfig.TorrentFileFolder, message.Text+".torrent")
+		go operations.DownloadTorrentByPostId(message.Text, destinationPath, func(result operations.OperationResult) {
+			if result.Err != nil {
+				fmt.Println(result.Text)
+				reply := bot.OutMessage{OriginalMessage: message, Text: result.Text}
+				outputChannel <- reply
+			} else {
+				fmt.Println("saved torrent file to ", destinationPath)
+				reply := bot.OutMessage{OriginalMessage: message, Text: result.Text}
+				outputChannel <- reply
 			}
-			if message.Command == "SEARCH" {
-				go operations.SearchTorrent(operationChannel, idCounter, message.Text)
-			}
-			if message.Command == "DOWNLOAD_BY_ID" {
-				destinationPath := config.CreateFilePath(envConfig.TorrentFileFolder, message.Text+".torrent")
-				go operations.DownloadTorrentByPostId(operationChannel, idCounter, message.Text, destinationPath)
-			}
-			if message.Command == "WATCH" {
-				go operations.WatchTorrent(operationChannel, idCounter, message.Text)
-			}
-		case result := <-operationChannel:
-			message := idToMessage[result.Id]
+		})
+	})
+
+	bot.AddHandler(bot.NewTextMatcher(".*"), func(message *bot.Info) {
+		fmt.Println("Command .*", message.Text)
+		go operations.SearchTorrent(message.Text, func(result operations.OperationResult) {
 			if result.Err != nil {
 				fmt.Println(result.Text)
 				reply := bot.OutMessage{OriginalMessage: message, Text: result.Text}
@@ -63,11 +57,29 @@ func main() {
 					convertItemsToText(result.Items, outputChannel, message)
 				}
 			}
-		}
-	}
+		})
+	})
+
+	bot.AddHandler(bot.NewFileNameMatcher(), func(message *bot.Info) {
+		destinationPath := config.CreateFilePath(envConfig.TorrentFileFolder, message.FileName)
+		go operations.Download(message.FileUrl, destinationPath, func(result operations.OperationResult) {
+			if result.Err != nil {
+				fmt.Println(result.Text)
+				reply := bot.OutMessage{OriginalMessage: message, Text: result.Text}
+				outputChannel <- reply
+			} else {
+				fmt.Println("saved torrent file to ", destinationPath)
+				reply := bot.OutMessage{OriginalMessage: message, Text: result.Text}
+				outputChannel <- reply
+			}
+		})
+	})
+
+	go bot.Sender(outputChannel)
+	bot.RequestUpdates()
 }
 
-func convertItemsToText(items []rutracker.TorrentItem, outputChannel chan bot.OutMessage, message bot.BotMessage) {
+func convertItemsToText(items []rutracker.TorrentItem, outputChannel chan bot.OutMessage, message *bot.Info) {
 	MAX_RES := 15
 	if MAX_RES > len(items) {
 		MAX_RES = len(items)
