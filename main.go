@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	fmt.Println("Telegram downloader ver 3")
+	fmt.Println("Telegram downloader ver 4")
 	envConfig, envError := config.Read()
 	if envError != nil {
 		fmt.Println("Load config error ", envError)
