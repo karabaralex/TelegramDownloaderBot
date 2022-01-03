@@ -105,7 +105,7 @@ func (matcher *FileNameMatcher) match(update *tgbotapi.Update) bool {
 
 func RequestUpdates() {
 	bot := createBot()
-	bot.Debug = true
+	bot.Debug = false
 
 	// Create a new UpdateConfig struct with an offset of 0. Offsets are used
 	// to make sure Telegram knows we've handled previous values and we don't

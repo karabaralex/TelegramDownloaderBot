@@ -10,7 +10,8 @@ import (
 )
 
 func main() {
-	fmt.Println("Telegram downloader ver 4")
+	version := "Telegram downloader ver 5"
+	fmt.Println(version)
 	envConfig, envError := config.Read()
 	if envError != nil {
 		fmt.Println("Load config error ", envError)
@@ -24,10 +25,22 @@ func main() {
 	outputChannel := make(chan bot.OutMessage)
 
 	// add bot handlers
+	bot.AddHandler(bot.NewCommandMatcher("/details[0-9]+"), func(message *bot.Info) {
+		// get topic id from message text
+		topicId := message.Text[len("/details"):]
+		instantView := fmt.Sprintf("https://t.me/iv?url=https://rutracker.org/forum/viewtopic.php?t=%s&rhash=4625e276e6dfbf", topicId)
+		outputChannel <- bot.OutMessage{OriginalMessage: message, Text: instantView}
+	})
+
+	bot.AddHandler(bot.NewCommandMatcher("/version"), func(message *bot.Info) {
+		outputChannel <- bot.OutMessage{OriginalMessage: message, Text: version}
+	})
+
 	bot.AddHandler(bot.NewCommandMatcher("/[0-9]+"), func(message *bot.Info) {
-		fmt.Println("Command /[0-9]+", message.Text)
-		destinationPath := config.CreateFilePath(envConfig.TorrentFileFolder, message.Text+".torrent")
-		go operations.DownloadTorrentByPostId(message.Text, destinationPath, func(result operations.OperationResult) {
+		topicId := message.Text[1:]
+		fmt.Println("Command /[0-9]+", topicId)
+		destinationPath := config.CreateFilePath(envConfig.TorrentFileFolder, topicId+".torrent")
+		go operations.DownloadTorrentByPostId(topicId, destinationPath, func(result operations.OperationResult) {
 			if result.Err != nil {
 				fmt.Println(result.Text)
 				reply := bot.OutMessage{OriginalMessage: message, Text: result.Text}
@@ -54,7 +67,9 @@ func main() {
 					reply := bot.OutMessage{OriginalMessage: message, Text: fmt.Sprintf("No results, watch /watch%s", message.Text)}
 					outputChannel <- reply
 				} else {
-					convertItemsToText(result.Items, outputChannel, message)
+					text := convertItemsToText(result.Items)
+					reply := bot.OutMessage{OriginalMessage: message, Text: text}
+					outputChannel <- reply
 				}
 			}
 		})
@@ -77,23 +92,4 @@ func main() {
 
 	go bot.Sender(outputChannel)
 	bot.RequestUpdates()
-}
-
-func convertItemsToText(items []rutracker.TorrentItem, outputChannel chan bot.OutMessage, message *bot.Info) {
-	MAX_RES := 15
-	if MAX_RES > len(items) {
-		MAX_RES = len(items)
-	}
-
-	lines := ""
-	for i := 0; i < MAX_RES; i++ {
-		lines = lines + fmt.Sprintf("%s\nSize:%s,Seeds:%s\n/%s\n\n",
-			items[i].Title,
-			items[i].Size,
-			items[i].Seeds,
-			items[i].TopicId)
-	}
-
-	reply := bot.OutMessage{OriginalMessage: message, Text: lines}
-	outputChannel <- reply
 }
