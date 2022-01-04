@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	version := "Telegram downloader ver 5"
+	version := "Telegram downloader ver 6"
 	fmt.Println(version)
 	envConfig, envError := config.Read()
 	if envError != nil {
@@ -62,7 +62,7 @@ func main() {
 					outputChannel <- reply
 				} else {
 					text := convertItemsToText(result.Items)
-					reply := bot.OutMessage{OriginalMessage: message, Text: text}
+					reply := bot.OutMessage{OriginalMessage: message, Text: text, Html: true}
 					outputChannel <- reply
 				}
 			}

@@ -174,7 +174,7 @@ func RequestUpdates() {
 type OutMessage struct {
 	OriginalMessage *Info
 	Text            string
-	html            bool
+	Html            bool
 }
 
 func Sender(sendChannel chan OutMessage) {
@@ -187,7 +187,7 @@ func Sender(sendChannel chan OutMessage) {
 		// reply! We'll take the Chat ID and Text from the incoming message
 		// and use it to create a new message.
 		msg := tgbotapi.NewMessage(telegramMessage.Chat.ID, toSend.Text)
-		if toSend.html {
+		if toSend.Html {
 			msg.ParseMode = "HTML"
 		}
 
