@@ -24,14 +24,6 @@ func main() {
 
 	outputChannel := make(chan bot.OutMessage)
 
-	// add bot handlers
-	bot.AddHandler(bot.NewCommandMatcher("/details[0-9]+"), func(message *bot.Info) {
-		// get topic id from message text
-		topicId := message.Text[len("/details"):]
-		instantView := fmt.Sprintf("https://t.me/iv?url=https://rutracker.org/forum/viewtopic.php?t=%s&rhash=4625e276e6dfbf", topicId)
-		outputChannel <- bot.OutMessage{OriginalMessage: message, Text: instantView}
-	})
-
 	bot.AddHandler(bot.NewCommandMatcher("/version"), func(message *bot.Info) {
 		outputChannel <- bot.OutMessage{OriginalMessage: message, Text: version}
 	})
@@ -39,6 +31,7 @@ func main() {
 	bot.AddHandler(bot.NewCommandMatcher("/[0-9]+"), func(message *bot.Info) {
 		topicId := message.Text[1:]
 		fmt.Println("Command /[0-9]+", topicId)
+		bot.SendTypingStatus(message)
 		destinationPath := config.CreateFilePath(envConfig.TorrentFileFolder, topicId+".torrent")
 		go operations.DownloadTorrentByPostId(topicId, destinationPath, func(result operations.OperationResult) {
 			if result.Err != nil {
@@ -55,6 +48,7 @@ func main() {
 
 	bot.AddHandler(bot.NewTextMatcher(".*"), func(message *bot.Info) {
 		fmt.Println("Command .*", message.Text)
+		bot.SendTypingStatus(message)
 		go operations.SearchTorrent(message.Text, func(result operations.OperationResult) {
 			if result.Err != nil {
 				fmt.Println(result.Text)
@@ -77,6 +71,7 @@ func main() {
 
 	bot.AddHandler(bot.NewFileNameMatcher(), func(message *bot.Info) {
 		destinationPath := config.CreateFilePath(envConfig.TorrentFileFolder, message.FileName)
+		bot.SendTypingStatus(message)
 		go operations.Download(message.FileUrl, destinationPath, func(result operations.OperationResult) {
 			if result.Err != nil {
 				fmt.Println(result.Text)

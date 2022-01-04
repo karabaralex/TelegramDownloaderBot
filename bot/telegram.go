@@ -16,10 +16,15 @@ type Info struct {
 }
 
 var API_TOKEN string
+var botInstance *tgbotapi.BotAPI
 
 // create bot, print error if any, do not panic
 // retry if error
 func createBot() *tgbotapi.BotAPI {
+	if botInstance != nil {
+		return botInstance
+	}
+
 	bot, err := tgbotapi.NewBotAPI(API_TOKEN)
 	if err != nil {
 		fmt.Println("error create bot ", err)
@@ -103,6 +108,13 @@ func (matcher *FileNameMatcher) match(update *tgbotapi.Update) bool {
 	return update.Message.Document != nil
 }
 
+func SendTypingStatus(info *Info) {
+	bot := createBot()
+
+	msg := tgbotapi.NewChatAction(info.source.Chat.ID, tgbotapi.ChatTyping)
+	bot.Send(msg)
+}
+
 func RequestUpdates() {
 	bot := createBot()
 	bot.Debug = false
@@ -156,50 +168,13 @@ func RequestUpdates() {
 			FileUrl:  fileUrl,
 			source:   update.Message,
 		})
-
-		// if update.Message.Document != nil {
-		// 	fmt.Println("document ", update.Message.Document.FileID)
-		// 	fileUrl, error := bot.GetFileDirectURL(update.Message.Document.FileID)
-		// 	if error != nil {
-		// 		fmt.Println("error get url ", error)
-		// 		continue
-		// 	}
-
-		// 	fmt.Println("doc url ", fileUrl)
-		// 	received <- BotMessage{
-		// 		Command:  "FILE",
-		// 		Text:     fileUrl,
-		// 		FileName: update.Message.Document.FileName,
-		// 		FileUrl:  fileUrl,
-		// 		source:   update.Message}
-		// } else if len(update.Message.Entities) > 0 && update.Message.Entities[0].Type == "bot_command" {
-		// 	// if text starts with /watch
-		// 	if update.Message.Text == "/watch" {
-		// 		fmt.Println("watch")
-		// 		received <- BotMessage{
-		// 			Command: "WATCH",
-		// 			Text:    update.Message.Text,
-		// 			source:  update.Message}
-		// 	} else {
-		// 		fmt.Println("search for ", update.Message.Text)
-		// 		received <- BotMessage{
-		// 			Command: "DOWNLOAD_BY_ID",
-		// 			Text:    update.Message.Text[1:],
-		// 			source:  update.Message}
-		// 	}
-		// } else {
-		// 	fmt.Println("search for ", update.Message.Text)
-		// 	received <- BotMessage{
-		// 		Command: "SEARCH",
-		// 		Text:    update.Message.Text,
-		// 		source:  update.Message}
-		// }
 	}
 }
 
 type OutMessage struct {
 	OriginalMessage *Info
 	Text            string
+	html            bool
 }
 
 func Sender(sendChannel chan OutMessage) {
@@ -212,6 +187,10 @@ func Sender(sendChannel chan OutMessage) {
 		// reply! We'll take the Chat ID and Text from the incoming message
 		// and use it to create a new message.
 		msg := tgbotapi.NewMessage(telegramMessage.Chat.ID, toSend.Text)
+		if toSend.html {
+			msg.ParseMode = "HTML"
+		}
+
 		// We'll also say that this message is a reply to the previous message.
 		// For any other specifications than Chat ID or Text, you'll need to
 		// set fields on the `MessageConfig`.
