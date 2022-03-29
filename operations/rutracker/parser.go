@@ -36,6 +36,11 @@ func authorize() error {
 	res, err := http.PostForm("https://rutracker.org/forum/login.php", form)
 	if err != nil {
 		log.Fatal(err)
+		return nil
+	}
+
+	if res.StatusCode != 200 {
+		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
 	}
 
 	authCookie = res.Request.Response.Cookies()
