@@ -173,6 +173,10 @@ func parseItemListPage(body io.Reader) ([]TorrentItem, error) {
 	// Find the items items
 	rows.Each(func(i int, row *goquery.Selection) {
 		titleTag := row.Find(".hl-tags")
+		if len(titleTag.Nodes) == 0 {
+			return
+		}
+
 		title := titleTag.Nodes[0].FirstChild.Data
 		size := row.Find(".tr-dl").Nodes[0].FirstChild.Data
 		topicId := ""
