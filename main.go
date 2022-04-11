@@ -87,9 +87,11 @@ func main() {
 						reply := bot.OutMessage{OriginalMessage: message, Text: fmt.Sprintf("No results, watch /watch%s", message.Text)}
 						outputChannel <- reply
 					} else {
-						text := convertItemsToText(result.Items)
-						reply := bot.OutMessage{OriginalMessage: message, Text: text, Html: true}
-						outputChannel <- reply
+						textBlocks := convertItemsToText(result.Items)
+						for _, textBlock := range textBlocks {
+							reply := bot.OutMessage{OriginalMessage: message, Text: textBlock, Html: true}
+							outputChannel <- reply
+						}
 					}
 				}
 			})
