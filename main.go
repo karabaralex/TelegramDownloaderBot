@@ -8,10 +8,11 @@ import (
 	"github.com/telegram-command-reader/config"
 	"github.com/telegram-command-reader/operations"
 	rutracker "github.com/telegram-command-reader/operations/rutracker"
+	transmission "github.com/telegram-command-reader/operations/transmission"
 )
 
 // safely call function without panic
-func safeCall(f func(), reply func(string)) {
+func safeCall(f func(), onError func(string)) {
 	defer func() {
 		if r := recover(); r != nil {
 			// print recovered stack trace
@@ -22,7 +23,7 @@ func safeCall(f func(), reply func(string)) {
 				fmt.Println("Send stacktrace error ", sterr)
 			} else {
 				result := fmt.Sprintf("Error: %s, Stacktrace url: %s", r, stackTraceUrl)
-				reply(result)
+				onError(result)
 			}
 		}
 	}()
@@ -38,11 +39,30 @@ func main() {
 		return
 	}
 
+	transmission.Create(envConfig.ActiveTorrentFilesPath)
 	rutracker.USER_NAME = envConfig.RuTrackerUserName
 	rutracker.USER_PASSWORD = envConfig.RuTrackerPassword
 	bot.API_TOKEN = envConfig.TelegramBotToken
 
 	outputChannel := make(chan bot.OutMessage)
+
+	bot.AddHandler(bot.NewCommandMatcher("/downloading"), func(message *bot.Info) {
+		// read all files and send them to output channel
+		go safeCall(func() {
+			list := transmission.ReadAllFilesInFolder()
+			// convert list to string
+			result := ""
+			for _, item := range list {
+				result += item + "\n"
+			}
+
+			reply := bot.OutMessage{OriginalMessage: message, Text: result}
+			outputChannel <- reply
+		}, func(result string) {
+			reply := bot.OutMessage{OriginalMessage: message, Text: result}
+			outputChannel <- reply
+		})
+	})
 
 	bot.AddHandler(bot.NewCommandMatcher("/version"), func(message *bot.Info) {
 		outputChannel <- bot.OutMessage{OriginalMessage: message, Text: version}
@@ -57,12 +77,16 @@ func main() {
 			operations.DownloadTorrentByPostId(topicId, destinationPath, func(result operations.OperationResult) {
 				if result.Err != nil {
 					fmt.Println(result.Text)
-					reply := bot.OutMessage{OriginalMessage: message, Text: result.Text}
-					outputChannel <- reply
 				} else {
 					fmt.Println("saved torrent file to ", destinationPath)
-					reply := bot.OutMessage{OriginalMessage: message, Text: result.Text}
-					outputChannel <- reply
+					newFileName, err := transmission.WaitForNewFile()
+					if err != nil {
+						reply := bot.OutMessage{OriginalMessage: message, Text: "Waited for new file, but error: " + err.Error()}
+						outputChannel <- reply
+					} else {
+						reply := bot.OutMessage{OriginalMessage: message, Text: newFileName}
+						outputChannel <- reply
+					}
 				}
 			})
 		}, func(result string) {

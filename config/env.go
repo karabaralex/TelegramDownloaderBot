@@ -7,10 +7,11 @@ import (
 )
 
 type Config struct {
-	TorrentFileFolder string
-	TelegramBotToken  string
-	RuTrackerUserName string
-	RuTrackerPassword string
+	TorrentFileFolder      string
+	TelegramBotToken       string
+	RuTrackerUserName      string
+	RuTrackerPassword      string
+	ActiveTorrentFilesPath string
 }
 
 func Read() (Config, error) {
@@ -26,6 +27,7 @@ func Read() (Config, error) {
 
 	result.RuTrackerUserName = os.Getenv("RUTRACKER_LOGIN")
 	result.RuTrackerPassword = os.Getenv("RUTRACKER_PASSWORD")
+	result.ActiveTorrentFilesPath = os.Getenv("ACTIVE_TORRENT_FILES_PATH")
 	return result, nil
 }
 
