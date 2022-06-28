@@ -183,6 +183,11 @@ func Sender(sendChannel chan OutMessage) {
 	for toSend := range sendChannel {
 		telegramMessage := toSend.OriginalMessage.source
 
+		// if toSend.text is more than 4096 symbols, trim it
+		if len(toSend.Text) > 4096 {
+			toSend.Text = toSend.Text[:4096]
+		}
+
 		// Now that we know we've gotten a new message, we can construct a
 		// reply! We'll take the Chat ID and Text from the incoming message
 		// and use it to create a new message.

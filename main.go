@@ -31,7 +31,7 @@ func safeCall(f func(), onError func(string)) {
 }
 
 func main() {
-	version := "Telegram downloader version 8"
+	version := "Telegram downloader version 9"
 	fmt.Println(version)
 	envConfig, envError := config.Read()
 	if envError != nil {
@@ -59,7 +59,7 @@ func main() {
 			} else {
 				result := ""
 				for _, item := range list {
-					result += item + "\n"
+					result += item + "\n\n"
 				}
 
 				reply := bot.OutMessage{OriginalMessage: message, Text: result}
@@ -82,7 +82,7 @@ func main() {
 			} else {
 				result := ""
 				for _, item := range list {
-					result += item + "\n"
+					result += item + "\n\n"
 				}
 
 				reply := bot.OutMessage{OriginalMessage: message, Text: result}
