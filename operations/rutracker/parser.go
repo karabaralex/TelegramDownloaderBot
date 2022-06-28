@@ -35,12 +35,12 @@ func authorize() error {
 
 	res, err := http.PostForm("https://rutracker.org/forum/login.php", form)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 		return nil
 	}
 
 	if res.StatusCode != 200 {
-		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
+		log.Panicf("status code error: %d %s", res.StatusCode, res.Status)
 	}
 
 	authCookie = res.Request.Response.Cookies()
@@ -62,7 +62,7 @@ func makeRequest(create createRequest) (*http.Response, error) {
 
 	req, err := create()
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	for i := 0; i < len(authCookie); i++ {
@@ -71,11 +71,11 @@ func makeRequest(create createRequest) (*http.Response, error) {
 
 	res, err := client.Do(req)
 	if err != nil {
-		log.Fatal(err)
+		log.Panic(err)
 	}
 
 	if res.StatusCode != 200 {
-		log.Fatalf("status code error: %d %s", res.StatusCode, res.Status)
+		log.Panicf("status code error: %d %s", res.StatusCode, res.Status)
 	}
 
 	return res, nil

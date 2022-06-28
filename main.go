@@ -31,7 +31,7 @@ func safeCall(f func(), onError func(string)) {
 }
 
 func main() {
-	version := "Telegram downloader version 7"
+	version := "Telegram downloader version 8"
 	fmt.Println(version)
 	envConfig, envError := config.Read()
 	if envError != nil {
@@ -39,7 +39,9 @@ func main() {
 		return
 	}
 
-	transmission.Create(envConfig.ActiveTorrentFilesPath)
+	activeFolder := transmission.New(envConfig.ActiveTorrentFilesPath)
+	finishedFolder := transmission.New(envConfig.FinishedFolder)
+
 	rutracker.USER_NAME = envConfig.RuTrackerUserName
 	rutracker.USER_PASSWORD = envConfig.RuTrackerPassword
 	bot.API_TOKEN = envConfig.TelegramBotToken
@@ -49,15 +51,43 @@ func main() {
 	bot.AddHandler(bot.NewCommandMatcher("/downloading"), func(message *bot.Info) {
 		// read all files and send them to output channel
 		go safeCall(func() {
-			list := transmission.ReadAllFilesInFolder()
-			// convert list to string
-			result := ""
-			for _, item := range list {
-				result += item + "\n"
-			}
+			list := activeFolder.ReadAllFilesInFolder()
 
+			// convert list to string, if list is empty then send message "No files"
+			if len(list) == 0 {
+				outputChannel <- bot.OutMessage{OriginalMessage: message, Text: "Nothing downloading"}
+			} else {
+				result := ""
+				for _, item := range list {
+					result += item + "\n"
+				}
+
+				reply := bot.OutMessage{OriginalMessage: message, Text: result}
+				outputChannel <- reply
+			}
+		}, func(result string) {
 			reply := bot.OutMessage{OriginalMessage: message, Text: result}
 			outputChannel <- reply
+		})
+	})
+
+	bot.AddHandler(bot.NewCommandMatcher("/finished"), func(message *bot.Info) {
+		// read all files and send them to output channel
+		go safeCall(func() {
+			list := finishedFolder.ReadAllFilesInFolder()
+
+			// convert list to string, if list is empty then send message "No files"
+			if len(list) == 0 {
+				outputChannel <- bot.OutMessage{OriginalMessage: message, Text: "Nothing finished"}
+			} else {
+				result := ""
+				for _, item := range list {
+					result += item + "\n"
+				}
+
+				reply := bot.OutMessage{OriginalMessage: message, Text: result}
+				outputChannel <- reply
+			}
 		}, func(result string) {
 			reply := bot.OutMessage{OriginalMessage: message, Text: result}
 			outputChannel <- reply
@@ -79,12 +109,21 @@ func main() {
 					fmt.Println(result.Text)
 				} else {
 					fmt.Println("saved torrent file to ", destinationPath)
-					newFileName, err := transmission.WaitForNewFile()
+					newFileName, err := activeFolder.WaitForNewFileWithRetry()
 					if err != nil {
-						reply := bot.OutMessage{OriginalMessage: message, Text: "Waited for new file, but error: " + err.Error()}
+						reply := bot.OutMessage{OriginalMessage: message, Text: "Waited for torrent to start loading, but error: " + err.Error()}
 						outputChannel <- reply
 					} else {
-						reply := bot.OutMessage{OriginalMessage: message, Text: newFileName}
+						reply := bot.OutMessage{OriginalMessage: message, Text: "Start loading: " + newFileName}
+						outputChannel <- reply
+					}
+
+					newFileName, err = finishedFolder.WaitForNewFile()
+					if err != nil {
+						reply := bot.OutMessage{OriginalMessage: message, Text: "Waited for torrent to finish, but error: " + err.Error()}
+						outputChannel <- reply
+					} else {
+						reply := bot.OutMessage{OriginalMessage: message, Text: fmt.Sprintf("%s finished", newFileName)}
 						outputChannel <- reply
 					}
 				}

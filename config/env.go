@@ -7,11 +7,12 @@ import (
 )
 
 type Config struct {
-	TorrentFileFolder      string
+	TorrentFileFolder      string // folder to store torrent files, which will be downloaded by transmission as a result
 	TelegramBotToken       string
 	RuTrackerUserName      string
 	RuTrackerPassword      string
-	ActiveTorrentFilesPath string
+	ActiveTorrentFilesPath string // folder which currently downloading, transmission will move torrent files to this folder
+	FinishedFolder         string // folder with downloaded content
 }
 
 func Read() (Config, error) {
@@ -28,6 +29,7 @@ func Read() (Config, error) {
 	result.RuTrackerUserName = os.Getenv("RUTRACKER_LOGIN")
 	result.RuTrackerPassword = os.Getenv("RUTRACKER_PASSWORD")
 	result.ActiveTorrentFilesPath = os.Getenv("ACTIVE_TORRENT_FILES_PATH")
+	result.FinishedFolder = os.Getenv("FINISHED_FOLDER")
 	return result, nil
 }
 
