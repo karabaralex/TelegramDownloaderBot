@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"time"
 )
 
@@ -95,8 +96,13 @@ func readAllFilesInFolder(path string) []string {
 
 	// Loop through the files
 	for _, f := range list {
-		// add the file name to result
-		result = append(result, f.Name())
+		fullPath := filepath.Join(path, f.Name())
+		title, err := GetTorrentTitle(fullPath)
+		if err != nil || len(title) == 0 {
+			result = append(result, f.Name())
+		} else {
+			result = append(result, title)
+		}
 	}
 
 	return result

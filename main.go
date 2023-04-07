@@ -31,7 +31,7 @@ func safeCall(f func(), onError func(string)) {
 }
 
 func main() {
-	version := "Telegram downloader version 9"
+	version := "Telegram downloader version 10"
 	fmt.Println(version)
 	envConfig, envError := config.Read()
 	if envError != nil {

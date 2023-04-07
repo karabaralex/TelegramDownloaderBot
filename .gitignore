@@ -17,3 +17,4 @@
 *.env
 launch.json
 test/*
+debug_folder/*
