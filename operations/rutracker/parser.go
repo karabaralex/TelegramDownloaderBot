@@ -103,7 +103,7 @@ func SearchItems(what string) ([]TorrentItem, error) {
 func sortListOfTorrentsBySeeders(items []TorrentItem) {
 	for i := 0; i < len(items); i++ {
 		for j := i + 1; j < len(items); j++ {
-			if seedsToInt(items[i].Seeds) < seedsToInt(items[j].Seeds) {
+			if seedsToInt(items[i].Seeds) > seedsToInt(items[j].Seeds) {
 				items[i], items[j] = items[j], items[i]
 			}
 		}

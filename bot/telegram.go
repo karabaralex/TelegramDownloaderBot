@@ -3,6 +3,7 @@ package bot
 import (
 	"fmt"
 	"regexp"
+	"strings"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -211,4 +212,28 @@ func Sender(sendChannel chan OutMessage) {
 			break
 		}
 	}
+}
+
+// encode string
+func EncodeString(value string) string {
+	// Replace spaces in encoded value with %&
+	encodedValue := strings.ReplaceAll(value, " ", "1X2U1")
+	return encodedValue
+}
+
+// encode string, to make it telegram command
+func EncodeStringToCommand(command string, value string) string {
+	// Replace spaces in encoded value with %&
+	encodedValue := EncodeString(value)
+
+	// Combine command and encoded value with underscore
+	return fmt.Sprintf("/%s_%s", command, encodedValue)
+}
+
+func DecodeStringFromCommand(value string) string {
+	// Replace spaces in encoded value with %&
+	decodedValue := strings.ReplaceAll(value, "1X2U1", " ")
+
+	// Combine command and encoded value with underscore
+	return decodedValue
 }
