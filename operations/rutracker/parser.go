@@ -81,9 +81,25 @@ func makeRequest(create createRequest) (*http.Response, error) {
 	return res, nil
 }
 
-func SearchItems(what string) ([]TorrentItem, error) {
+func SearchEverywhere(what string) ([]TorrentItem, error) {
+	return searchItems(searchEverywhere(what))
+}
+
+func SearchAudioBooks(what string) ([]TorrentItem, error) {
+	return searchItems(searchAudioBooks(what))
+}
+
+func SearchMovies(what string) ([]TorrentItem, error) {
+	return searchItems(searchMovies(what))
+}
+
+func SearchSeries(what string) ([]TorrentItem, error) {
+	return searchItems(searchSeries(what))
+}
+
+func searchItems(uri string) ([]TorrentItem, error) {
 	res, err := makeRequest(func() (*http.Request, error) {
-		return http.NewRequest("GET", searchCall(what), nil)
+		return http.NewRequest("GET", uri, nil)
 	})
 
 	if err != nil {
@@ -120,8 +136,31 @@ func seedsToInt(s string) int {
 	return i
 }
 
-func searchCall(what string) string {
+// search everywhere
+func searchEverywhere(what string) string {
 	return fmt.Sprintf("https://rutracker.org/forum/tracker.php?nm=%s", what)
+}
+
+func searchAudioBooks(what string) string {
+	allCategories := "2348,2387,2388,2389,661,2127,2137,2327,399,402,467,490,499,695,1279,1350,2165,2328,401,403,716,1909"
+	return fmt.Sprintf("https://rutracker.org/forum/tracker.php?f=%s&nm=%s", allCategories, what)
+}
+
+func searchMovies(what string) string {
+	//106,1666,22,376,941
+	//1235,166,185,187,1950,2090,2091,2092,2093,212,2200,2221,2459,252,2540,505,7,934
+	//124,1543,1577,709
+	//100,101,1576,1670,2220,572,877,905,93
+	//1247,140,1457,194,2198,2199,2201,2339,312,313
+	//1908
+	//1936
+	allCategories := "106,1666,22,376,941,1235,166,185,187,1950,2090,2091,2092,2093,212,2200,2221,2459,252,2540,505,7,934,124,1543,1577,709,100,101,1576,1670,2220,572,877,905,93,1247,140,1457,194,2198,2199,2201,2339,312,313,1908,1936"
+	return fmt.Sprintf("https://rutracker.org/forum/tracker.php?f=%s&nm=%s", allCategories, what)
+}
+
+func searchSeries(what string) string {
+	all := "81,920,842,235,242,1531,1102,387,195,119,1803,266,193,1459,1288,1498,864,315"
+	return fmt.Sprintf("https://rutracker.org/forum/tracker.php?f=%s&nm=%s", all, what)
 }
 
 func downloadCall(topicId string) string {

@@ -14,6 +14,7 @@ type Info struct {
 	FileName string
 	FileUrl  string
 	source   *tgbotapi.Message
+	callback *tgbotapi.CallbackQuery
 }
 
 var API_TOKEN string
@@ -51,6 +52,8 @@ type TextMatcher struct {
 }
 type FileNameMatcher struct {
 }
+type InlineResponseMatcher struct {
+}
 
 // create new CommandMatcher
 func NewCommandMatcher(regex string) *CommandMatcher {
@@ -63,6 +66,10 @@ func NewTextMatcher(regex string) *TextMatcher {
 
 func NewFileNameMatcher() *FileNameMatcher {
 	return &FileNameMatcher{}
+}
+
+func NewInlineResponseMatcher() *InlineResponseMatcher {
+	return &InlineResponseMatcher{}
 }
 
 var pair = make(map[Matcher]Hanlder)
@@ -116,6 +123,25 @@ func SendTypingStatus(info *Info) {
 	bot.Send(msg)
 }
 
+// public enum of values for inline response
+const (
+	Movies     = "Movies"
+	Series     = "Series"
+	Audiobooks = "Audiobooks"
+	All        = "All"
+)
+
+var numericKeyboard = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Везде", All),
+		tgbotapi.NewInlineKeyboardButtonData("Фильмы", Movies),
+	),
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Сериалы", Series),
+		tgbotapi.NewInlineKeyboardButtonData("Аудиокниги", Audiobooks),
+	),
+)
+
 func RequestUpdates() {
 	bot := createBot()
 	bot.Debug = false
@@ -138,37 +164,60 @@ func RequestUpdates() {
 		// Telegram can send many types of updates depending on what your Bot
 		// is up to. We only want to look at messages for now, so we can
 		// discard any other updates.
-		if update.Message == nil {
+		if update.Message != nil {
+			// check if matchers match
+			handler, ok := findHandlerForUpdate(&update)
+			if !ok {
+				fmt.Println("no handler for update")
+				continue
+			}
+
+			var fileUrl string
+			var fileName string
+
+			if update.Message.Document != nil {
+				var err error = nil
+				fileUrl, err = bot.GetFileDirectURL(update.Message.Document.FileID)
+				fileName = update.Message.Document.FileName
+				if err != nil {
+					fmt.Println("error get url ", err)
+					continue
+				}
+			}
+
+			handler(&Info{
+				Text:     update.Message.Text,
+				FileName: fileName,
+				FileUrl:  fileUrl,
+				source:   update.Message,
+			})
+		} else if update.CallbackQuery != nil {
+			// find if we have reply function for the message in hash and call it
+			replyCallback, ok := replyCallbacks[update.CallbackQuery.Message.MessageID]
+			if ok {
+				replyCallback(update.CallbackQuery.Data)
+			}
+
+			// Respond to the callback query, telling Telegram to show the user
+			// a message with the data received.
+			callback := tgbotapi.NewCallback(update.CallbackQuery.ID, update.CallbackQuery.Data)
+			if _, err := bot.Request(callback); err != nil {
+				msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, err.Error())
+				bot.Send(msg)
+				continue
+			}
+
+			// originalText := update.CallbackQuery.Message.ReplyToMessage.Text
+			// // And finally, send a message containing the data received.
+			// msg := tgbotapi.NewMessage(update.CallbackQuery.Message.Chat.ID, originalText)
+			// if _, err := bot.Send(msg); err != nil {
+			// 	fmt.Println(err.Error())
+			// 	continue
+			// }
+		} else {
 			fmt.Println("update without message")
 			continue
 		}
-
-		// check if matchers match
-		handler, ok := findHandlerForUpdate(&update)
-		if !ok {
-			fmt.Println("no handler for update")
-			continue
-		}
-
-		var fileUrl string
-		var fileName string
-
-		if update.Message.Document != nil {
-			var err error = nil
-			fileUrl, err = bot.GetFileDirectURL(update.Message.Document.FileID)
-			fileName = update.Message.Document.FileName
-			if err != nil {
-				fmt.Println("error get url ", err)
-				continue
-			}
-		}
-
-		handler(&Info{
-			Text:     update.Message.Text,
-			FileName: fileName,
-			FileUrl:  fileUrl,
-			source:   update.Message,
-		})
 	}
 }
 
@@ -176,7 +225,12 @@ type OutMessage struct {
 	OriginalMessage *Info
 	Text            string
 	Html            bool
+	InlineKeyboard  bool
+	ReplyCallback   func(string)
 }
+
+// map of reply callbacks
+var replyCallbacks = make(map[int]func(string))
 
 func Sender(sendChannel chan OutMessage) {
 	bot := createBot()
@@ -201,14 +255,23 @@ func Sender(sendChannel chan OutMessage) {
 		// For any other specifications than Chat ID or Text, you'll need to
 		// set fields on the `MessageConfig`.
 		msg.ReplyToMessageID = telegramMessage.MessageID
+		if toSend.InlineKeyboard {
+			msg.ReplyMarkup = numericKeyboard
+		}
 
 		for i := 0; i < 3; i++ {
-			_, err := bot.Send(msg)
+			sentMessage, err := bot.Send(msg)
 			if err != nil {
 				fmt.Println("error send message ", err)
 				time.Sleep(time.Second * 3)
 				continue
 			}
+
+			if toSend.ReplyCallback != nil {
+				// we need to wait for user reply, add message to hashmap by id
+				replyCallbacks[sentMessage.MessageID] = toSend.ReplyCallback
+			}
+
 			break
 		}
 	}

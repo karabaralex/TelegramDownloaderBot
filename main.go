@@ -233,27 +233,30 @@ func searchTorrent(originalMessage *bot.Info, searchText string, outputChannel c
 	fmt.Println("Command .*", searchText)
 	bot.SendTypingStatus(originalMessage)
 	go safeCall(func() {
-		operations.SearchTorrent(searchText, func(result operations.OperationResult) {
-			if result.Err != nil {
-				fmt.Println(result.Text)
-				reply := bot.OutMessage{OriginalMessage: originalMessage, Text: result.Text}
-				outputChannel <- reply
-			} else {
-				fmt.Println("search result")
-				// check if items nil or empty
-				if result.Items == nil || len(result.Items) == 0 {
-					save := bot.EncodeStringToCommand("save", searchText)
-					reply := bot.OutMessage{OriginalMessage: originalMessage, Text: fmt.Sprintf("No results, %s", save)}
+		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Где искать?", InlineKeyboard: true, ReplyCallback: func(data string) {
+			operations.SearchTorrent(searchText, data, func(result operations.OperationResult) {
+				if result.Err != nil {
+					fmt.Println(result.Text)
+					reply := bot.OutMessage{OriginalMessage: originalMessage, Text: result.Text}
 					outputChannel <- reply
 				} else {
-					textBlocks := convertItemsToText(result.Items)
-					for _, textBlock := range textBlocks {
-						reply := bot.OutMessage{OriginalMessage: originalMessage, Text: textBlock, Html: true}
+					fmt.Println("search result")
+					// check if items nil or empty
+					if result.Items == nil || len(result.Items) == 0 {
+						save := bot.EncodeStringToCommand("save", searchText)
+						reply := bot.OutMessage{OriginalMessage: originalMessage, Text: fmt.Sprintf("No results, %s", save)}
 						outputChannel <- reply
+					} else {
+						textBlocks := convertItemsToText(result.Items)
+						for _, textBlock := range textBlocks {
+							reply := bot.OutMessage{OriginalMessage: originalMessage, Text: textBlock, Html: true}
+							outputChannel <- reply
+						}
 					}
 				}
-			}
-		})
+			})
+		}}
+		outputChannel <- reply
 	}, func(s string) {
 		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: s}
 		outputChannel <- reply

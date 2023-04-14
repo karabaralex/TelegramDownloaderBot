@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/telegram-command-reader/bot"
 	rutracker "github.com/telegram-command-reader/operations/rutracker"
 )
 
@@ -32,8 +33,22 @@ func WatchTorrent(what string, callback Callback) {
 	callback(OperationResult{Text: fmt.Sprintf("watching %s", what)})
 }
 
-func SearchTorrent(what string, callback Callback) {
-	items, err := rutracker.SearchItems(what)
+func SearchTorrent(what string, where string, callback Callback) {
+	var items []rutracker.TorrentItem
+	var err error
+	if where == bot.All {
+		items, err = rutracker.SearchEverywhere(what)
+	} else if where == bot.Audiobooks {
+		items, err = rutracker.SearchAudioBooks(what)
+	} else if where == bot.Movies {
+		items, err = rutracker.SearchMovies(what)
+	} else if where == bot.Series {
+		items, err = rutracker.SearchSeries(what)
+	} else {
+		fmt.Println("Incorrect search destination:" + where)
+		items, err = rutracker.SearchEverywhere(what)
+	}
+
 	if err != nil {
 		fmt.Println("Error searching ", err)
 		callback(OperationResult{Text: "cannot search", Err: err})
