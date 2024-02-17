@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"io"
 	"regexp"
 	"strings"
 	"time"
@@ -125,13 +126,15 @@ func SendTypingStatus(info *Info) {
 
 // public enum of values for inline response
 const (
-	Movies     = "Movies"
-	Series     = "Series"
-	Audiobooks = "Audiobooks"
-	All        = "All"
+	Movies               = "Movies"
+	Series               = "Series"
+	Audiobooks           = "Audiobooks"
+	All                  = "All"
+	DownloadActionFile   = "DownloadActionFile"
+	DownloadActionServer = "DownloadActionServer"
 )
 
-var numericKeyboard = tgbotapi.NewInlineKeyboardMarkup(
+var CategoriesKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Везде", All),
 		tgbotapi.NewInlineKeyboardButtonData("Фильмы", Movies),
@@ -139,6 +142,13 @@ var numericKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Сериалы", Series),
 		tgbotapi.NewInlineKeyboardButtonData("Аудиокниги", Audiobooks),
+	),
+)
+
+var DownloadActionKeyboard = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Скачать торрент файл", DownloadActionFile),
+		tgbotapi.NewInlineKeyboardButtonData("На сервер", DownloadActionServer),
 	),
 )
 
@@ -222,11 +232,13 @@ func RequestUpdates() {
 }
 
 type OutMessage struct {
-	OriginalMessage *Info
-	Text            string
-	Html            bool
-	InlineKeyboard  bool
-	ReplyCallback   func(string)
+	OriginalMessage   *Info
+	Text              string
+	Html              bool
+	UseInlineKeyboard bool
+	InlineKeyboard    tgbotapi.InlineKeyboardMarkup
+	ReplyCallback     func(string)
+	FileStream        io.ReadCloser
 }
 
 // map of reply callbacks
@@ -235,19 +247,19 @@ var replyCallbacks = make(map[int]func(string))
 func Sender(sendChannel chan OutMessage) {
 	bot := createBot()
 
-	for toSend := range sendChannel {
-		telegramMessage := toSend.OriginalMessage.source
+	for receivedMessage := range sendChannel {
+		telegramMessage := receivedMessage.OriginalMessage.source
 
 		// if toSend.text is more than 4096 symbols, trim it
-		if len(toSend.Text) > 4096 {
-			toSend.Text = toSend.Text[:4096]
+		if len(receivedMessage.Text) > 4096 {
+			receivedMessage.Text = receivedMessage.Text[:4096]
 		}
 
 		// Now that we know we've gotten a new message, we can construct a
 		// reply! We'll take the Chat ID and Text from the incoming message
 		// and use it to create a new message.
-		msg := tgbotapi.NewMessage(telegramMessage.Chat.ID, toSend.Text)
-		if toSend.Html {
+		msg := tgbotapi.NewMessage(telegramMessage.Chat.ID, receivedMessage.Text)
+		if receivedMessage.Html {
 			msg.ParseMode = "HTML"
 		}
 
@@ -255,25 +267,40 @@ func Sender(sendChannel chan OutMessage) {
 		// For any other specifications than Chat ID or Text, you'll need to
 		// set fields on the `MessageConfig`.
 		msg.ReplyToMessageID = telegramMessage.MessageID
-		if toSend.InlineKeyboard {
-			msg.ReplyMarkup = numericKeyboard
+		if receivedMessage.UseInlineKeyboard {
+			msg.ReplyMarkup = receivedMessage.InlineKeyboard
 		}
 
-		for i := 0; i < 3; i++ {
-			sentMessage, err := bot.Send(msg)
-			if err != nil {
-				fmt.Println("error send message ", err)
-				time.Sleep(time.Second * 3)
-				continue
+		if receivedMessage.FileStream != nil {
+			file := tgbotapi.FileReader{
+				Name:   receivedMessage.Text,
+				Reader: receivedMessage.FileStream,
 			}
 
-			if toSend.ReplyCallback != nil {
-				// we need to wait for user reply, add message to hashmap by id
-				replyCallbacks[sentMessage.MessageID] = toSend.ReplyCallback
-			}
-
-			break
+			sendMessage(bot, tgbotapi.NewDocument(telegramMessage.Chat.ID, file), receivedMessage)
+			defer receivedMessage.FileStream.Close()
+			return
+		} else {
+			sendMessage(bot, msg, receivedMessage)
 		}
+	}
+}
+
+func sendMessage(bot *tgbotapi.BotAPI, msg tgbotapi.Chattable, toSend OutMessage) {
+	// we need to wait for user reply, add message to hashmap by id
+	for i := 0; i < 3; i++ {
+		sentMessage, err := bot.Send(msg)
+		if err != nil {
+			fmt.Println("error send message ", err)
+			time.Sleep(time.Second * 3)
+			continue
+		}
+
+		if toSend.ReplyCallback != nil {
+			replyCallbacks[sentMessage.MessageID] = toSend.ReplyCallback
+		}
+
+		break
 	}
 }
 

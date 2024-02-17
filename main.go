@@ -164,38 +164,55 @@ func main() {
 		outputChannel <- bot.OutMessage{OriginalMessage: message, Text: version}
 	})
 
-	bot.AddHandler(bot.NewCommandMatcher("/[0-9]+"), func(message *bot.Info) {
-		topicId := message.Text[1:]
+	bot.AddHandler(bot.NewCommandMatcher("/[0-9]+"), func(originalMessage *bot.Info) {
+		topicId := originalMessage.Text[1:]
 		fmt.Println("Command /[0-9]+", topicId)
-		bot.SendTypingStatus(message)
+		bot.SendTypingStatus(originalMessage)
 		destinationPath := config.CreateFilePath(envConfig.TorrentFileFolder, topicId+".torrent")
 		go safeCall(func() {
-			operations.DownloadTorrentByPostId(topicId, destinationPath, func(result operations.OperationResult) {
-				if result.Err != nil {
-					fmt.Println(result.Text)
-				} else {
-					fmt.Println("saved torrent file to ", destinationPath)
-					newFileName, err := activeFolder.WaitForNewFileWithRetry()
-					if err != nil {
-						reply := bot.OutMessage{OriginalMessage: message, Text: "Waited for torrent to start loading, but error: " + err.Error()}
-						outputChannel <- reply
-					} else {
-						reply := bot.OutMessage{OriginalMessage: message, Text: "Start loading: " + newFileName}
-						outputChannel <- reply
-					}
+			reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Что делаем?", UseInlineKeyboard: true, InlineKeyboard: bot.DownloadActionKeyboard, ReplyCallback: func(data string) {
+				if data == bot.DownloadActionFile {
+					operations.DownloadTorrentByPostIdToStream(topicId, func(result operations.OperationResult) {
+						if result.Err != nil {
+							fmt.Println(result.Text)
+							reply := bot.OutMessage{OriginalMessage: originalMessage, Text: result.Err.Error()}
+							outputChannel <- reply
+						} else {
+							fmt.Println("saved torrent file to stream")
+							reply := bot.OutMessage{OriginalMessage: originalMessage, Text: topicId + ".torrent", FileStream: result.FileStream}
+							outputChannel <- reply
+						}
+					})
+				} else if data == bot.DownloadActionServer {
+					operations.DownloadTorrentByPostId(topicId, destinationPath, func(result operations.OperationResult) {
+						if result.Err != nil {
+							fmt.Println(result.Text)
+						} else {
+							fmt.Println("saved torrent file to ", destinationPath)
+							newFileName, err := activeFolder.WaitForNewFileWithRetry()
+							if err != nil {
+								reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Waited for torrent to start loading, but error: " + err.Error()}
+								outputChannel <- reply
+							} else {
+								reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Start loading: " + newFileName}
+								outputChannel <- reply
+							}
 
-					newFileName, err = finishedFolder.WaitForNewFile()
-					if err != nil {
-						reply := bot.OutMessage{OriginalMessage: message, Text: "Waited for torrent to finish, but error: " + err.Error()}
-						outputChannel <- reply
-					} else {
-						reply := bot.OutMessage{OriginalMessage: message, Text: fmt.Sprintf("%s finished", newFileName)}
-						outputChannel <- reply
-					}
+							newFileName, err = finishedFolder.WaitForNewFile()
+							if err != nil {
+								reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Waited for torrent to finish, but error: " + err.Error()}
+								outputChannel <- reply
+							} else {
+								reply := bot.OutMessage{OriginalMessage: originalMessage, Text: fmt.Sprintf("%s finished", newFileName)}
+								outputChannel <- reply
+							}
+						}
+					})
 				}
-			})
+			}}
+			outputChannel <- reply
 		}, func(result string) {
-			reply := bot.OutMessage{OriginalMessage: message, Text: result}
+			reply := bot.OutMessage{OriginalMessage: originalMessage, Text: result}
 			outputChannel <- reply
 		})
 	})
@@ -233,7 +250,7 @@ func searchTorrent(originalMessage *bot.Info, searchText string, outputChannel c
 	fmt.Println("Command .*", searchText)
 	bot.SendTypingStatus(originalMessage)
 	go safeCall(func() {
-		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Где искать?", InlineKeyboard: true, ReplyCallback: func(data string) {
+		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Где искать?", UseInlineKeyboard: true, InlineKeyboard: bot.CategoriesKeyboard, ReplyCallback: func(data string) {
 			operations.SearchTorrent(searchText, data, func(result operations.OperationResult) {
 				if result.Err != nil {
 					fmt.Println(result.Text)

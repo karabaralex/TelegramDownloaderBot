@@ -2,6 +2,7 @@ package operations
 
 import (
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/telegram-command-reader/bot"
@@ -9,9 +10,10 @@ import (
 )
 
 type OperationResult struct {
-	Text  string
-	Items []rutracker.TorrentItem
-	Err   error
+	Text       string
+	Items      []rutracker.TorrentItem
+	Err        error
+	FileStream io.ReadCloser
 }
 
 // define callback function
@@ -26,6 +28,17 @@ func DownloadTorrentByPostId(topicId string, destination string, callback Callba
 	}
 
 	callback(OperationResult{Text: "scheduled"})
+}
+
+func DownloadTorrentByPostIdToStream(topicId string, callback Callback) {
+	stream, err := rutracker.DownloadTorrentFileToStream(topicId)
+	if err != nil {
+		fmt.Println("Error download ", err)
+		callback(OperationResult{Text: "cannot download", Err: err})
+		return
+	}
+
+	callback(OperationResult{Text: "scheduled", FileStream: stream})
 }
 
 func WatchTorrent(what string, callback Callback) {

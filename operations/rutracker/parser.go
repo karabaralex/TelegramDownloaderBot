@@ -182,6 +182,19 @@ func DownloadTorrentFile(filepath string, topicId string) error {
 	return err
 }
 
+func DownloadTorrentFileToStream(topicId string) (io.ReadCloser, error) {
+	res, err := makeRequest(func() (*http.Request, error) {
+		return http.NewRequest("GET", downloadCall(topicId), nil)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// defer res.Body.Close()
+	return res.Body, err
+}
+
 type TorrentItem struct {
 	Title   string
 	Size    string
