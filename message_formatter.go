@@ -16,10 +16,11 @@ func convertItemsToText(items []rutracker.TorrentItem) []string {
 	lines := ""
 	for i := 0; i < MAX_RES; i++ {
 		url := fmt.Sprintf("https://t.me/iv?url=https://rutracker.org/forum/viewtopic.php?t=%s&rhash=4625e276e6dfbf", items[i].TopicId)
-		nextItem := fmt.Sprintf("%s\n<b>Size:%s</b>,Seeds:%s\n/%s			<a href=\"%s\">details</a>\n\n",
+		nextItem := fmt.Sprintf("%s\n<b>Size:%s</b>,Seeds:%s,%s\n/%s			<a href=\"%s\">details</a>\n\n",
 			items[i].Title,
 			items[i].Size,
 			items[i].Seeds,
+			items[i].Category,
 			items[i].TopicId,
 			url)
 		// if lenght of line + next item is more than 4096 symbols, then start new string

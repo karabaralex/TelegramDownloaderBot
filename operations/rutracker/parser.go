@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/PuerkitoBio/goquery"
 	"golang.org/x/text/encoding/charmap"
@@ -119,10 +120,20 @@ func searchItems(uri string) ([]TorrentItem, error) {
 func sortListOfTorrentsBySeeders(items []TorrentItem) {
 	for i := 0; i < len(items); i++ {
 		for j := i + 1; j < len(items); j++ {
-			if seedsToInt(items[i].Seeds) > seedsToInt(items[j].Seeds) {
+			iSeeds := seedsToInt(items[i].Seeds) - dvdCategoryPenalty(items[i].Category)
+			jSeeds := seedsToInt(items[j].Seeds) - dvdCategoryPenalty(items[j].Category)
+			if iSeeds > jSeeds {
 				items[i], items[j] = items[j], items[i]
 			}
 		}
+	}
+}
+
+func dvdCategoryPenalty(category string) int {
+	if strings.Contains(strings.ToLower(category), "dvd") {
+		return 100
+	} else {
+		return 0
 	}
 }
 
@@ -196,10 +207,11 @@ func DownloadTorrentFileToStream(topicId string) (io.ReadCloser, error) {
 }
 
 type TorrentItem struct {
-	Title   string
-	Size    string
-	Seeds   string
-	TopicId string
+	Title    string
+	Size     string
+	Seeds    string
+	TopicId  string
+	Category string
 }
 
 func parseItemListPage(body io.Reader) ([]TorrentItem, error) {
@@ -230,6 +242,7 @@ func parseItemListPage(body io.Reader) ([]TorrentItem, error) {
 		}
 
 		title := titleTag.Nodes[0].FirstChild.Data
+		category := string(decodeWindows1251([]uint8(row.Find(".ts-text").Nodes[0].FirstChild.Data)))
 		size := row.Find(".tr-dl").Nodes[0].FirstChild.Data
 		topicId := ""
 		for i := range titleTag.Nodes[0].Attr {
@@ -250,7 +263,7 @@ func parseItemListPage(body io.Reader) ([]TorrentItem, error) {
 		}
 
 		title = string(decodeWindows1251([]uint8(title)))
-		item := TorrentItem{Title: title, Size: size, Seeds: seeds, TopicId: topicId}
+		item := TorrentItem{Title: title, Size: size, Seeds: seeds, TopicId: topicId, Category: category}
 		items = append(items, item)
 	})
 
