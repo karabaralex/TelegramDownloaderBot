@@ -278,8 +278,7 @@ func Sender(sendChannel chan OutMessage) {
 			}
 
 			sendMessage(bot, tgbotapi.NewDocument(telegramMessage.Chat.ID, file), receivedMessage)
-			defer receivedMessage.FileStream.Close()
-			return
+			receivedMessage.FileStream.Close()
 		} else {
 			sendMessage(bot, msg, receivedMessage)
 		}
