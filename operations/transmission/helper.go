@@ -29,8 +29,8 @@ func New(path string) WatchedFolder {
 }
 
 // return new file or error
-func (folder WatchedFolder) WaitForNewFileWithRetry() (string, error) {
-	maxRetry := 5
+func (folder WatchedFolder) WaitForNewFileWithRetry(seconds int) (string, error) {
+	maxRetry := seconds
 	for i := 0; i < maxRetry; i++ {
 		list := folder.ReadAllFilesInFolder()
 

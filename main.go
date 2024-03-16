@@ -33,7 +33,7 @@ func safeCall(f func(), onError func(string)) {
 }
 
 func main() {
-	version := "Telegram downloader version 11"
+	version := "Telegram downloader version 12"
 	fmt.Println(version)
 	envConfig, envError := config.Read()
 	if envError != nil {
@@ -189,23 +189,7 @@ func main() {
 							fmt.Println(result.Text)
 						} else {
 							fmt.Println("saved torrent file to ", destinationPath)
-							newFileName, err := activeFolder.WaitForNewFileWithRetry()
-							if err != nil {
-								reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Waited for torrent to start loading, but error: " + err.Error()}
-								outputChannel <- reply
-							} else {
-								reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Start loading: " + newFileName}
-								outputChannel <- reply
-							}
-
-							newFileName, err = finishedFolder.WaitForNewFile()
-							if err != nil {
-								reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Waited for torrent to finish, but error: " + err.Error()}
-								outputChannel <- reply
-							} else {
-								reply := bot.OutMessage{OriginalMessage: originalMessage, Text: fmt.Sprintf("%s finished", newFileName)}
-								outputChannel <- reply
-							}
+							go monitorTorrentUpdates(activeFolder, originalMessage, outputChannel, finishedFolder)
 						}
 					})
 				}
@@ -244,6 +228,26 @@ func main() {
 
 	go bot.Sender(outputChannel)
 	bot.RequestUpdates()
+}
+
+func monitorTorrentUpdates(activeFolder transmission.WatchedFolder, originalMessage *bot.Info, outputChannel chan bot.OutMessage, finishedFolder transmission.WatchedFolder) {
+	newFileName, err := activeFolder.WaitForNewFileWithRetry(25)
+	if err != nil {
+		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Waited for torrent to start loading, but error: " + err.Error()}
+		outputChannel <- reply
+	} else {
+		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Start loading: " + newFileName}
+		outputChannel <- reply
+	}
+
+	newFileName, err = finishedFolder.WaitForNewFileWithRetry(60 * 60 * 24)
+	if err != nil {
+		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Waited for torrent to finish, but error: " + err.Error()}
+		outputChannel <- reply
+	} else {
+		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: fmt.Sprintf("%s finished", newFileName)}
+		outputChannel <- reply
+	}
 }
 
 func searchTorrent(originalMessage *bot.Info, searchText string, outputChannel chan bot.OutMessage) {

@@ -229,6 +229,8 @@ func RequestUpdates() {
 			continue
 		}
 	}
+
+	fmt.Println("Warning: Finished getting updates")
 }
 
 type OutMessage struct {
