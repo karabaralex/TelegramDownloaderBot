@@ -38,3 +38,34 @@ func convertItemsToText(items []rutracker.TorrentItem) []string {
 
 	return result
 }
+
+func convertItemsToPrompt(items []rutracker.TorrentItem, searchQuery string) string {
+	MAX_RES := 15
+	if MAX_RES > len(items) {
+		MAX_RES = len(items)
+	}
+
+	lines := ""
+	for i := 0; i < MAX_RES; i++ {
+		nextItem := fmt.Sprintf("%d) Title:%s,Size:%s,Seeds:%s,Category:%s, /%s\n",
+			i,
+			items[i].Title,
+			items[i].Size,
+			items[i].Seeds,
+			items[i].Category,
+			items[i].TopicId)
+		lines += nextItem
+	}
+
+	prompt := fmt.Sprintf(`you are given a search result for a search query \"%s\", you need to pick best candidate based on following criteria (ordered by priority from high to low):
+	0. it is a movie
+	1. should not mention DVD
+	2. the more seeds the better
+	3. if this is single movie then reasonable size is about 10 gb
+	4. if series then reasonable size is about 40 gb
+	
+	If there are no suitable candidates then you can skip some of requirement  above. Respond with exact item from the list and don't change anything in the item.
+	%s`, searchQuery, lines)
+
+	return prompt
+}

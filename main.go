@@ -8,6 +8,7 @@ import (
 	"github.com/telegram-command-reader/bot"
 	"github.com/telegram-command-reader/config"
 	"github.com/telegram-command-reader/operations"
+	"github.com/telegram-command-reader/operations/ai"
 	rutracker "github.com/telegram-command-reader/operations/rutracker"
 	"github.com/telegram-command-reader/operations/storage"
 	transmission "github.com/telegram-command-reader/operations/transmission"
@@ -33,7 +34,7 @@ func safeCall(f func(), onError func(string)) {
 }
 
 func main() {
-	version := "Telegram downloader version 12"
+	version := "Telegram downloader version 13"
 	fmt.Println(version)
 	envConfig, envError := config.Read()
 	if envError != nil {
@@ -48,6 +49,7 @@ func main() {
 	rutracker.USER_PASSWORD = envConfig.RuTrackerPassword
 	bot.API_TOKEN = envConfig.TelegramBotToken
 	storage.API_KEY = envConfig.KVDBToken
+	ai.API_KEY = envConfig.GeminiApiKey
 
 	outputChannel := make(chan bot.OutMessage)
 
@@ -273,6 +275,8 @@ func searchTorrent(originalMessage *bot.Info, searchText string, outputChannel c
 							reply := bot.OutMessage{OriginalMessage: originalMessage, Text: textBlock, Html: true}
 							outputChannel <- reply
 						}
+
+						go makeAiResponse(result, searchText, originalMessage, outputChannel)
 					}
 				}
 			})
@@ -282,4 +286,20 @@ func searchTorrent(originalMessage *bot.Info, searchText string, outputChannel c
 		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: s}
 		outputChannel <- reply
 	})
+}
+
+func makeAiResponse(result operations.OperationResult, searchText string, originalMessage *bot.Info, outputChannel chan bot.OutMessage) {
+	prompt := convertItemsToPrompt(result.Items, searchText)
+	fmt.Println(prompt)
+	ai_result, ai_error := ai.GenerateAiResponse(prompt)
+	if ai_error != nil {
+		fmt.Println(ai_error)
+		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: ai_error.Error()}
+		outputChannel <- reply
+	} else {
+		fmt.Println(ai_result)
+		aiOutput := fmt.Sprintf("<b>Совет искуственного интеллекта:</b>\n%s", ai_result)
+		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: aiOutput, Html: true}
+		outputChannel <- reply
+	}
 }

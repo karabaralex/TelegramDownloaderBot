@@ -14,6 +14,7 @@ type Config struct {
 	ActiveTorrentFilesPath string // folder which currently downloading, transmission will move torrent files to this folder
 	FinishedFolder         string // folder with downloaded content
 	KVDBToken              string // api token for kvdb.io
+	GeminiApiKey           string
 }
 
 func Read() (Config, error) {
@@ -32,6 +33,7 @@ func Read() (Config, error) {
 	result.ActiveTorrentFilesPath = os.Getenv("ACTIVE_TORRENT_FILES_PATH")
 	result.FinishedFolder = os.Getenv("FINISHED_FOLDER")
 	result.KVDBToken = os.Getenv("KVDB_TOKEN")
+	result.GeminiApiKey = os.Getenv("GEMINI_AI_API_TOKEN")
 	if result.RuTrackerUserName == "" || result.RuTrackerPassword == "" || result.KVDBToken == "" {
 		return result, errors.New("missing arguments")
 	}
