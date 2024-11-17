@@ -5,6 +5,8 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sort"
+	"strings"
 	"time"
 )
 
@@ -48,7 +50,7 @@ func (folder WatchedFolder) WaitForNewFileWithRetry(seconds int) (string, error)
 		time.Sleep(time.Second)
 	}
 
-	return "", fmt.Errorf("No new file found")
+	return "", fmt.Errorf("no new file found")
 }
 
 // return new file or error
@@ -106,4 +108,36 @@ func readAllFilesInFolder(path string) []string {
 	}
 
 	return result
+}
+
+func GetAllTorrentsAsString() (string, error) {
+	torrents, err := GetAllTorrents()
+	if err != nil {
+		return "", fmt.Errorf("failed to get torrents: %w", err)
+	}
+
+	if len(torrents) == 0 {
+		return "No torrents found", nil
+	}
+	// Sort torrents so downloading ones are last
+	sort.Slice(torrents, func(i, j int) bool {
+		// If either torrent doesn't have a status, treat as non-downloading
+		if torrents[i].Status == nil || torrents[j].Status == nil {
+			return false
+		}
+
+		// Return true if i should come before j
+		iDownloading := *torrents[i].Status == 4
+		jDownloading := *torrents[j].Status == 4
+		return !iDownloading && jDownloading
+	})
+
+	var result strings.Builder
+	for _, t := range torrents {
+		if t.Name != nil {
+			result.WriteString(fmt.Sprintf("%s, %.1f%%, %s, /delete_%d\n", *t.Name, *t.PercentDone*100, *t.Status, *t.ID))
+		}
+	}
+
+	return result.String(), nil
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"regexp"
 	"runtime/debug"
+	"strconv"
 
 	"github.com/telegram-command-reader/bot"
 	"github.com/telegram-command-reader/config"
@@ -34,7 +35,7 @@ func safeCall(f func(), onError func(string)) {
 }
 
 func main() {
-	version := "Telegram downloader version 13"
+	version := "Telegram downloader version 14"
 	fmt.Println(version)
 	envConfig, envError := config.Read()
 	if envError != nil {
@@ -50,6 +51,7 @@ func main() {
 	bot.API_TOKEN = envConfig.TelegramBotToken
 	storage.API_KEY = envConfig.KVDBToken
 	ai.API_KEY = envConfig.GeminiApiKey
+	transmission.RPC_URI = envConfig.TransmissionUri
 
 	outputChannel := make(chan bot.OutMessage)
 
@@ -66,8 +68,23 @@ func main() {
 		re := regexp.MustCompile("^/delete_([A-Za-z0-9+/]+={0,2})$")
 		match1 := re.FindStringSubmatch(message.Text)
 		if len(match1) > 0 {
-			if storage.DeleteKey(match1[1]) {
+			id, err := strconv.ParseInt(match1[1], 10, 64)
+			if err != nil {
+				reply := bot.OutMessage{OriginalMessage: message, Text: "Invalid torrent ID"}
+				outputChannel <- reply
+				return
+			}
+			ok, err := transmission.RemoveTorrent(id)
+			if err != nil {
+				reply := bot.OutMessage{OriginalMessage: message, Text: "Error deleting torrent: " + err.Error()}
+				outputChannel <- reply
+				return
+			}
+			if ok {
 				reply := bot.OutMessage{OriginalMessage: message, Text: "Deleted:" + bot.DecodeStringFromCommand(match1[1])}
+				outputChannel <- reply
+			} else {
+				reply := bot.OutMessage{OriginalMessage: message, Text: "Failed to delete torrent"}
 				outputChannel <- reply
 			}
 		}
@@ -119,20 +136,7 @@ func main() {
 	bot.AddHandler(bot.NewCommandMatcher("/downloading"), func(message *bot.Info) {
 		// read all files and send them to output channel
 		go safeCall(func() {
-			list := activeFolder.ReadAllFilesInFolder()
-
-			// convert list to string, if list is empty then send message "No files"
-			if len(list) == 0 {
-				outputChannel <- bot.OutMessage{OriginalMessage: message, Text: "Nothing downloading"}
-			} else {
-				result := ""
-				for _, item := range list {
-					result += item + "\n\n"
-				}
-
-				reply := bot.OutMessage{OriginalMessage: message, Text: result}
-				outputChannel <- reply
-			}
+			showTorrentList(message, outputChannel)
 		}, func(result string) {
 			reply := bot.OutMessage{OriginalMessage: message, Text: result}
 			outputChannel <- reply
@@ -142,20 +146,7 @@ func main() {
 	bot.AddHandler(bot.NewCommandMatcher("/finished"), func(message *bot.Info) {
 		// read all files and send them to output channel
 		go safeCall(func() {
-			list := finishedFolder.ReadAllFilesInFolder()
-
-			// convert list to string, if list is empty then send message "No files"
-			if len(list) == 0 {
-				outputChannel <- bot.OutMessage{OriginalMessage: message, Text: "Nothing finished"}
-			} else {
-				result := ""
-				for _, item := range list {
-					result += item + "\n\n"
-				}
-
-				reply := bot.OutMessage{OriginalMessage: message, Text: result}
-				outputChannel <- reply
-			}
+			showTorrentList(message, outputChannel)
 		}, func(result string) {
 			reply := bot.OutMessage{OriginalMessage: message, Text: result}
 			outputChannel <- reply
@@ -286,6 +277,24 @@ func searchTorrent(originalMessage *bot.Info, searchText string, outputChannel c
 		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: s}
 		outputChannel <- reply
 	})
+}
+
+func showTorrentList(message *bot.Info, outputChannel chan bot.OutMessage) {
+	ok, err := transmission.CheckRPCConnection()
+	if err != nil {
+		outputChannel <- bot.OutMessage{OriginalMessage: message, Text: "Error connecting to transmission: " + err.Error()}
+		return
+	}
+	if !ok {
+		outputChannel <- bot.OutMessage{OriginalMessage: message, Text: "Could not connect to transmission"}
+		return
+	}
+	torrents, err := transmission.GetAllTorrentsAsString()
+	if err != nil {
+		outputChannel <- bot.OutMessage{OriginalMessage: message, Text: err.Error()}
+		return
+	}
+	outputChannel <- bot.OutMessage{OriginalMessage: message, Text: torrents}
 }
 
 func makeAiResponse(result operations.OperationResult, searchText string, originalMessage *bot.Info, outputChannel chan bot.OutMessage) {

@@ -15,10 +15,15 @@ type Config struct {
 	FinishedFolder         string // folder with downloaded content
 	KVDBToken              string // api token for kvdb.io
 	GeminiApiKey           string
+	TransmissionUri        string // URI for connecting to transmission RPC server
 }
 
 func Read() (Config, error) {
 	result := Config{}
+	result.TransmissionUri = os.Getenv("TRANSMISSION_URI")
+	if result.TransmissionUri == "" {
+		result.TransmissionUri = "http://127.0.0.1:9091/transmission/rpc"
+	}
 	result.TorrentFileFolder = os.Getenv("TORRENT_FOLDER")
 	result.TelegramBotToken = os.Getenv("TELEGRAM_TOKEN")
 	if result.TorrentFileFolder == "" {
