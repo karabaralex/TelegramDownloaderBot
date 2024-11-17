@@ -276,7 +276,7 @@ func searchTorrent(originalMessage *bot.Info, searchText string, outputChannel c
 							outputChannel <- reply
 						}
 
-						go makeAiResponse(result, searchText, originalMessage, outputChannel)
+						// go makeAiResponse(result, searchText, originalMessage, outputChannel)
 					}
 				}
 			})
