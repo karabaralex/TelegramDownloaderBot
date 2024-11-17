@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 )
 
 type Config struct {
@@ -16,14 +17,18 @@ type Config struct {
 	KVDBToken              string // api token for kvdb.io
 	GeminiApiKey           string
 	TransmissionUri        string // URI for connecting to transmission RPC server
+	TransmissionPortFrom   int
+	TransmissionPortTo     int
 }
 
 func Read() (Config, error) {
 	result := Config{}
 	result.TransmissionUri = os.Getenv("TRANSMISSION_URI")
 	if result.TransmissionUri == "" {
-		result.TransmissionUri = "http://127.0.0.1:9091/transmission/rpc"
+		result.TransmissionUri = "127.0.0.1"
 	}
+	result.TransmissionPortFrom = parseIntOrDefault(os.Getenv("TRANSMISSION_PORT_FROM"), 0)
+	result.TransmissionPortTo = parseIntOrDefault(os.Getenv("TRANSMISSION_PORT_TO"), 0)
 	result.TorrentFileFolder = os.Getenv("TORRENT_FOLDER")
 	result.TelegramBotToken = os.Getenv("TELEGRAM_TOKEN")
 	if result.TorrentFileFolder == "" {
@@ -47,4 +52,12 @@ func Read() (Config, error) {
 
 func CreateFilePath(torrentFolder string, fileName string) string {
 	return filepath.Join(torrentFolder, fileName)
+}
+
+func parseIntOrDefault(str string, defaultValue int) int {
+	num, err := strconv.Atoi(str)
+	if err != nil {
+		return defaultValue
+	}
+	return num
 }

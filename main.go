@@ -35,7 +35,7 @@ func safeCall(f func(), onError func(string)) {
 }
 
 func main() {
-	version := "Telegram downloader version 14"
+	version := "Telegram downloader version 15"
 	fmt.Println(version)
 	envConfig, envError := config.Read()
 	if envError != nil {
@@ -52,6 +52,8 @@ func main() {
 	storage.API_KEY = envConfig.KVDBToken
 	ai.API_KEY = envConfig.GeminiApiKey
 	transmission.RPC_URI = envConfig.TransmissionUri
+	transmission.RPC_PORT_FROM = envConfig.TransmissionPortFrom
+	transmission.RPC_PORT_TO = envConfig.TransmissionPortTo
 
 	outputChannel := make(chan bot.OutMessage)
 

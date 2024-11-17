@@ -3,6 +3,7 @@ package transmission
 import (
 	"context"
 	"fmt"
+	"net"
 	"net/url"
 
 	"github.com/hekmon/transmissionrpc/v3"
@@ -10,19 +11,64 @@ import (
 
 var client *transmissionrpc.Client
 var RPC_URI string
+var RPC_PORT_FROM int
+var RPC_PORT_TO int
+var dynamicPort int
+
+// http://127.0.0.1:9091/transmission/rpc
+func getTransmissionUriString(port int) string {
+	return fmt.Sprintf("http://%s:%d/transmission/rpc", RPC_URI, port)
+}
 
 func getClient() (*transmissionrpc.Client, error) {
 	if client != nil {
-		return client, nil
+		ok, _ := checkRPCConnection(client)
+		if ok {
+			return client, nil
+		} else {
+			client = nil
+			dynamicPort = 0
+		}
 	}
 
-	endpoint, err := url.Parse(RPC_URI)
+	if dynamicPort == 0 {
+		// check if any port in range is open
+		for port := RPC_PORT_FROM; port <= RPC_PORT_TO; port++ {
+			endpoint := getTransmissionUriString(port)
+			fmt.Println("RPC checking uri ", endpoint)
+			conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+			if err == nil {
+				conn.Close()
+				client, err = makeClient(endpoint)
+				if err != nil {
+					continue
+				} else {
+					dynamicPort = port
+					break
+				}
+			} else {
+				fmt.Println("RPC checking error ", err)
+			}
+		}
+	}
+
+	return client, nil
+}
+
+// uri in format http://127.0.0.1:9091/transmission/rpc
+func makeClient(uri string) (*transmissionrpc.Client, error) {
+	endpoint, err := url.Parse(uri)
 	if err != nil {
 		return nil, err
 	}
 
 	tbt, err := transmissionrpc.New(endpoint, nil)
 	if err != nil {
+		return nil, err
+	}
+
+	ok, err := checkRPCConnection(tbt)
+	if !ok {
 		return nil, err
 	}
 
@@ -35,7 +81,18 @@ func CheckRPCConnection() (bool, error) {
 		return false, err
 	}
 
-	ok, serverVersion, serverMinimumVersion, err := tbt.RPCVersion(context.Background())
+	ok, err := checkRPCConnection(tbt)
+
+	if ok {
+		client = tbt
+		return true, nil
+	} else {
+		return false, err
+	}
+}
+
+func checkRPCConnection(clientLocal *transmissionrpc.Client) (bool, error) {
+	ok, serverVersion, serverMinimumVersion, err := clientLocal.RPCVersion(context.Background())
 	if err != nil {
 		return false, err
 	}
@@ -48,7 +105,6 @@ func CheckRPCConnection() (bool, error) {
 	fmt.Printf("Remote transmission RPC version (v%d) is compatible with our transmissionrpc library (v%d)\n",
 		serverVersion, transmissionrpc.RPCVersion)
 
-	client = tbt
 	return true, nil
 }
 
