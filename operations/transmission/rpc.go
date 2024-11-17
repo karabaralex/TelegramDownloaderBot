@@ -36,7 +36,7 @@ func getClient() (*transmissionrpc.Client, error) {
 		for port := RPC_PORT_FROM; port <= RPC_PORT_TO; port++ {
 			endpoint := getTransmissionUriString(port)
 			fmt.Println("RPC checking uri ", endpoint)
-			conn, err := net.Dial("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+			conn, err := net.Dial("tcp", fmt.Sprintf("%s:%d", RPC_URI, port))
 			if err == nil {
 				conn.Close()
 				client, err = makeClient(endpoint)
@@ -44,7 +44,7 @@ func getClient() (*transmissionrpc.Client, error) {
 					continue
 				} else {
 					dynamicPort = port
-					break
+					return client, nil
 				}
 			} else {
 				fmt.Println("RPC checking error ", err)
@@ -52,7 +52,7 @@ func getClient() (*transmissionrpc.Client, error) {
 		}
 	}
 
-	return client, nil
+	return nil, fmt.Errorf("no rpc port found")
 }
 
 // uri in format http://127.0.0.1:9091/transmission/rpc
