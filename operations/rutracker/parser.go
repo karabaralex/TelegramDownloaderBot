@@ -29,10 +29,17 @@ func authorize() error {
 		return errors.New("no rutracker auth params")
 	}
 
+	const (
+		loginFormKey    = "login"
+		loginFormValue  = "%C2%F5%EE%E4"
+		usernameFormKey = "login_username"
+		passwordFormKey = "login_password"
+	)
+
 	form := url.Values{}
-	form.Add("login_username", USER_NAME)
-	form.Add("login_password", USER_PASSWORD)
-	form.Add("login", "%C2%F5%EE%E4")
+	form.Add(usernameFormKey, USER_NAME)
+	form.Add(passwordFormKey, USER_PASSWORD)
+	form.Add(loginFormKey, loginFormValue)
 
 	res, err := http.PostForm("https://rutracker.org/forum/login.php", form)
 	if err != nil {
@@ -158,14 +165,16 @@ func searchAudioBooks(what string) string {
 }
 
 func searchMovies(what string) string {
+	// numbers are subdirectories of rutracker.org like https://rutracker.org/forum/viewforum.php?f=93
 	//106,1666,22,376,941
 	//1235,166,185,187,1950,2090,2091,2092,2093,212,2200,2221,2459,252,2540,505,7,934
 	//124,1543,1577,709
-	//100,101,1576,1670,2220,572,877,905,93
 	//1247,140,1457,194,2198,2199,2201,2339,312,313
 	//1908
 	//1936
-	allCategories := "106,1666,22,376,941,1235,166,185,187,1950,2090,2091,2092,2093,212,2200,2221,2459,252,2540,505,7,934,124,1543,1577,709,100,101,1576,1670,2220,572,877,905,93,1247,140,1457,194,2198,2199,2201,2339,312,313,1908,1936"
+	// excluded DVD 100,101,1576,1670,2220,572,877,905,93
+	// excluded audio cover 185
+	allCategories := "106,1666,22,376,941,1235,166,187,1950,2090,2091,2092,2093,212,2200,2221,2459,252,2540,505,7,934,124,1543,1577,709,1247,140,1457,194,2198,2199,2201,2339,312,313,1908,1936"
 	return fmt.Sprintf("https://rutracker.org/forum/tracker.php?f=%s&nm=%s", allCategories, what)
 }
 
