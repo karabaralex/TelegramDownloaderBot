@@ -57,6 +57,8 @@ func SearchTorrent(what string, where string, callback Callback) {
 		items, err = rutracker.SearchMovies(what)
 	} else if where == bot.Series {
 		items, err = rutracker.SearchSeries(what)
+	} else if where == bot.TextBooks {
+		items, err = rutracker.SearchBooks(what)
 	} else {
 		fmt.Println("Incorrect search destination:" + where)
 		items, err = rutracker.SearchEverywhere(what)

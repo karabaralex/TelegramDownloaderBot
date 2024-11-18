@@ -132,6 +132,7 @@ const (
 	All                  = "All"
 	DownloadActionFile   = "DownloadActionFile"
 	DownloadActionServer = "DownloadActionServer"
+	TextBooks            = "TextBooks"
 )
 
 var CategoriesKeyboard = tgbotapi.NewInlineKeyboardMarkup(
@@ -142,6 +143,7 @@ var CategoriesKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Сериалы", Series),
 		tgbotapi.NewInlineKeyboardButtonData("Аудиокниги", Audiobooks),
+		tgbotapi.NewInlineKeyboardButtonData("Книги", TextBooks),
 	),
 )
 
