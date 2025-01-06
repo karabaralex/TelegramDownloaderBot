@@ -1,18 +1,27 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"runtime/debug"
 	"strconv"
+	"strings"
+	"unicode"
 
 	"github.com/telegram-command-reader/bot"
 	"github.com/telegram-command-reader/config"
 	"github.com/telegram-command-reader/operations"
 	"github.com/telegram-command-reader/operations/ai"
+	"github.com/telegram-command-reader/operations/jackett"
 	rutracker "github.com/telegram-command-reader/operations/rutracker"
 	"github.com/telegram-command-reader/operations/storage"
 	transmission "github.com/telegram-command-reader/operations/transmission"
+)
+
+var (
+	jacketClient              *jackett.Jackett       // this is lib to search all torrent providers
+	lastJackettRequestResults map[int]jackett.Result = make(map[int]jackett.Result)
 )
 
 // safely call function without panic
@@ -35,7 +44,7 @@ func safeCall(f func(), onError func(string)) {
 }
 
 func main() {
-	version := "Telegram downloader version 15"
+	version := "Telegram downloader version 16"
 	fmt.Println(version)
 	envConfig, envError := config.Read()
 	if envError != nil {
@@ -43,6 +52,10 @@ func main() {
 		return
 	}
 
+	jackett.JACKET_KEY = envConfig.JackettApiKey
+	jackett.JACKET_PORT_FROM = envConfig.JackettPortFrom
+	jackett.JACKET_PORT_TO = envConfig.JackettPortTo
+	jackett.JACKET_URI = envConfig.JackettApiURL
 	activeFolder := transmission.New(envConfig.ActiveTorrentFilesPath)
 	finishedFolder := transmission.New(envConfig.FinishedFolder)
 
@@ -64,6 +77,77 @@ func main() {
 			movie_name := bot.DecodeStringFromCommand(match1[1])
 			searchTorrent(message, movie_name, outputChannel)
 		}
+	})
+
+	bot.AddHandler(bot.NewCommandMatcher("/download_([0-9]+)"), func(message *bot.Info) {
+		idStr := message.Text[10:]
+		id, err := strconv.Atoi(idStr)
+		if err != nil {
+			reply := bot.OutMessage{OriginalMessage: message, Text: "Invalid torrent ID: " + err.Error()}
+			outputChannel <- reply
+			return
+		}
+
+		go safeCall(func() {
+			magnetUri := lastJackettRequestResults[id].MagnetUri
+			linkUri := lastJackettRequestResults[id].Link
+			if magnetUri == "" && linkUri == "" {
+				reply := bot.OutMessage{OriginalMessage: message, Text: "Try search again, no magnet URI found for ID: " + idStr}
+				outputChannel <- reply
+				return
+			}
+
+			if magnetUri != "" {
+				result, err := transmission.AddTorrent(magnetUri)
+				if err != nil {
+					reply := bot.OutMessage{OriginalMessage: message, Text: "Error adding torrent: " + err.Error()}
+					outputChannel <- reply
+					return
+				}
+				if result {
+					outputChannel <- bot.OutMessage{OriginalMessage: message, Text: "Downloading from magnet"}
+					return
+				}
+			}
+
+			if linkUri != "" {
+				reply := bot.OutMessage{OriginalMessage: message, Text: "Что делаем?", UseInlineKeyboard: true, InlineKeyboard: bot.DownloadActionKeyboard, ReplyCallback: func(data string) {
+					fileTitle := strings.Map(func(r rune) rune {
+						if unicode.IsLetter(r) || unicode.IsNumber(r) {
+							return r
+						}
+						return '_'
+					}, lastJackettRequestResults[id].Title)
+					if data == bot.DownloadActionFile {
+						operations.DownloadJackettTorrentByUriToStream(linkUri, func(result operations.OperationResult) {
+							if result.Err != nil {
+								fmt.Println(result.Text)
+								reply := bot.OutMessage{OriginalMessage: message, Text: result.Err.Error()}
+								outputChannel <- reply
+							} else {
+								fmt.Println("saved torrent file to stream")
+								reply := bot.OutMessage{OriginalMessage: message, Text: fileTitle + ".torrent", FileStream: result.FileStream}
+								outputChannel <- reply
+							}
+						})
+					} else if data == bot.DownloadActionServer {
+						destinationPath := config.CreateFilePath(envConfig.TorrentFileFolder, fileTitle+".torrent")
+						operations.DownloadJackettTorrentByUri(linkUri, destinationPath, func(result operations.OperationResult) {
+							if result.Err != nil {
+								fmt.Println(result.Text)
+							} else {
+								fmt.Println("saved torrent file to ", destinationPath)
+								go monitorTorrentUpdates(activeFolder, message, outputChannel, finishedFolder)
+							}
+						})
+					}
+				}}
+				outputChannel <- reply
+			}
+		}, func(result string) {
+			reply := bot.OutMessage{OriginalMessage: message, Text: result}
+			outputChannel <- reply
+		})
 	})
 
 	bot.AddHandler(bot.NewCommandMatcher("/delete_([A-Za-z0-9+/]+={0,2})"), func(message *bot.Info) {
@@ -249,6 +333,7 @@ func searchTorrent(originalMessage *bot.Info, searchText string, outputChannel c
 	fmt.Println("Command .*", searchText)
 	bot.SendTypingStatus(originalMessage)
 	go safeCall(func() {
+
 		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "Где искать?", UseInlineKeyboard: true, InlineKeyboard: bot.CategoriesKeyboard, ReplyCallback: func(data string) {
 			operations.SearchTorrent(searchText, data, func(result operations.OperationResult) {
 				if result.Err != nil {
@@ -259,9 +344,10 @@ func searchTorrent(originalMessage *bot.Info, searchText string, outputChannel c
 					fmt.Println("search result")
 					// check if items nil or empty
 					if result.Items == nil || len(result.Items) == 0 {
-						save := bot.EncodeStringToCommand("save", searchText)
-						reply := bot.OutMessage{OriginalMessage: originalMessage, Text: fmt.Sprintf("No results, %s", save)}
-						outputChannel <- reply
+						searchJackett(searchText, originalMessage, outputChannel)
+						// save := bot.EncodeStringToCommand("save", searchText)
+						// reply := bot.OutMessage{OriginalMessage: originalMessage, Text: fmt.Sprintf("No results, %s", save)}
+						// outputChannel <- reply
 					} else {
 						textBlocks := convertItemsToText(result.Items)
 						for _, textBlock := range textBlocks {
@@ -279,6 +365,43 @@ func searchTorrent(originalMessage *bot.Info, searchText string, outputChannel c
 		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: s}
 		outputChannel <- reply
 	})
+}
+
+func searchJackett(searchText string, originalMessage *bot.Info, outputChannel chan bot.OutMessage) {
+	jacketClient, err := jackett.GetClient()
+	if err != nil {
+		fmt.Println("No jackett ", err)
+	} else {
+		fmt.Println("Jackett found")
+	}
+
+	lastJackettRequestResults = make(map[int]jackett.Result)
+	ctx := context.Background()
+	input := &jackett.FetchRequest{Query: searchText}
+	response, err := jacketClient.Fetch(ctx, input)
+	if err != nil {
+		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: fmt.Sprintf("Error searching: %v", err)}
+		outputChannel <- reply
+		return
+	}
+
+	if len(response.Results) == 0 {
+		reply := bot.OutMessage{OriginalMessage: originalMessage, Text: "No results found"}
+		outputChannel <- reply
+		return
+	}
+
+	var results []string
+	id := 0
+	for _, result := range response.Results {
+		lastJackettRequestResults[id] = result
+		results = append(results, fmt.Sprintf("Title: %s\nSize: %d\nSeeders: %d\nDownload: /download_%d",
+			result.Title, result.Size, result.Seeders, id))
+		id = id + 1
+	}
+
+	reply := bot.OutMessage{OriginalMessage: originalMessage, Text: strings.Join(results, "\n\n")}
+	outputChannel <- reply
 }
 
 func showTorrentList(message *bot.Info, outputChannel chan bot.OutMessage) {

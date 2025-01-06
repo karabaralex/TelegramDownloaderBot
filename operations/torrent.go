@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/telegram-command-reader/bot"
+	"github.com/telegram-command-reader/operations/jackett"
 	rutracker "github.com/telegram-command-reader/operations/rutracker"
 )
 
@@ -32,6 +33,28 @@ func DownloadTorrentByPostId(topicId string, destination string, callback Callba
 
 func DownloadTorrentByPostIdToStream(topicId string, callback Callback) {
 	stream, err := rutracker.DownloadTorrentFileToStream(topicId)
+	if err != nil {
+		fmt.Println("Error download ", err)
+		callback(OperationResult{Text: "cannot download", Err: err})
+		return
+	}
+
+	callback(OperationResult{Text: "scheduled", FileStream: stream})
+}
+
+func DownloadJackettTorrentByUri(uri string, destination string, callback Callback) {
+	err := jackett.DownloadTorrentFile(destination, uri)
+	if err != nil {
+		fmt.Println("Error download ", err)
+		callback(OperationResult{Text: "cannot download", Err: err})
+		return
+	}
+
+	callback(OperationResult{Text: "scheduled"})
+}
+
+func DownloadJackettTorrentByUriToStream(uri string, callback Callback) {
+	stream, err := jackett.DownloadTorrentFileToStream(uri)
 	if err != nil {
 		fmt.Println("Error download ", err)
 		callback(OperationResult{Text: "cannot download", Err: err})

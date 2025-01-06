@@ -19,6 +19,10 @@ type Config struct {
 	TransmissionUri        string // URI for connecting to transmission RPC server
 	TransmissionPortFrom   int
 	TransmissionPortTo     int
+	JackettApiURL          string
+	JackettApiKey          string
+	JackettPortFrom        int
+	JackettPortTo          int
 }
 
 func Read() (Config, error) {
@@ -37,7 +41,10 @@ func Read() (Config, error) {
 	if result.TelegramBotToken == "" {
 		return result, errors.New("no telegram token")
 	}
-
+	result.JackettApiURL = os.Getenv("JACKETT_API_URL")
+	result.JackettApiKey = os.Getenv("JACKETT_API_KEY")
+	result.JackettPortFrom = parseIntOrDefault(os.Getenv("JACKETT_PORT_FROM"), 0)
+	result.JackettPortTo = parseIntOrDefault(os.Getenv("JACKETT_PORT_TO"), 0)
 	result.RuTrackerUserName = os.Getenv("RUTRACKER_LOGIN")
 	result.RuTrackerPassword = os.Getenv("RUTRACKER_PASSWORD")
 	result.ActiveTorrentFilesPath = os.Getenv("ACTIVE_TORRENT_FILES_PATH")

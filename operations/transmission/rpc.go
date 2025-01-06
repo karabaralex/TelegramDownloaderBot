@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"os"
 
 	"github.com/hekmon/transmissionrpc/v3"
 )
@@ -134,4 +135,25 @@ func RemoveTorrent(id int64) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func AddTorrent(magnet string) (bool, error) {
+	tbt, err := getClient()
+	if err != nil {
+		return false, err
+	}
+
+	torrent, err := tbt.TorrentAdd(context.Background(), transmissionrpc.TorrentAddPayload{
+		Filename: &magnet,
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return false, err
+	} else {
+		// Only 3 fields will be returned/set in the Torrent struct
+		fmt.Println(*torrent.ID)
+		fmt.Println(*torrent.Name)
+		fmt.Println(*torrent.HashString)
+		return true, nil
+	}
 }
