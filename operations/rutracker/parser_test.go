@@ -7,7 +7,7 @@ import (
 )
 
 func TestSearchArg(t *testing.T) {
-	expected := "https://rutracker.org/forum/tracker.php?nm=fallout"
+	expected := "https://rutracker.org/forum/tracker.php?nm=fallout&o=10&s=2"
 	actual := searchEverywhere("fallout")
 	if expected != actual {
 		t.Fatalf("expected:%s, actual:%s", expected, actual)
