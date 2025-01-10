@@ -126,13 +126,15 @@ func SendTypingStatus(info *Info) {
 
 // public enum of values for inline response
 const (
-	Movies               = "Movies"
-	Series               = "Series"
-	Audiobooks           = "Audiobooks"
-	All                  = "All"
-	DownloadActionFile   = "DownloadActionFile"
-	DownloadActionServer = "DownloadActionServer"
-	TextBooks            = "TextBooks"
+	Movies                = "Movies"
+	Series                = "Series"
+	Audiobooks            = "Audiobooks"
+	All                   = "All"
+	DownloadActionFile    = "DownloadActionFile"
+	DownloadActionServer  = "DownloadActionServer"
+	TextBooks             = "TextBooks"
+	MessageMore           = "MessageMore"
+	MessageProviderSearch = "MessageProviderSearch"
 )
 
 var CategoriesKeyboard = tgbotapi.NewInlineKeyboardMarkup(
@@ -151,6 +153,13 @@ var DownloadActionKeyboard = tgbotapi.NewInlineKeyboardMarkup(
 	tgbotapi.NewInlineKeyboardRow(
 		tgbotapi.NewInlineKeyboardButtonData("Скачать торрент файл", DownloadActionFile),
 		tgbotapi.NewInlineKeyboardButtonData("На сервер", DownloadActionServer),
+	),
+)
+
+var MessageActionKeyboard = tgbotapi.NewInlineKeyboardMarkup(
+	tgbotapi.NewInlineKeyboardRow(
+		tgbotapi.NewInlineKeyboardButtonData("Следующие результаты", MessageMore),
+		tgbotapi.NewInlineKeyboardButtonData("Искать в других местах", MessageProviderSearch),
 	),
 )
 

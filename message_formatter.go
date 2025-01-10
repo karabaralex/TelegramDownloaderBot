@@ -7,14 +7,9 @@ import (
 )
 
 func convertItemsToText(items []rutracker.TorrentItem) []string {
-	MAX_RES := 15
-	if MAX_RES > len(items) {
-		MAX_RES = len(items)
-	}
-
 	result := []string{}
 	lines := ""
-	for i := 0; i < MAX_RES; i++ {
+	for i := len(items) - 1; i >= 0; i-- {
 		// url to open instant view with torrent details https://instantview.telegram.org/
 		url := fmt.Sprintf("https://t.me/iv?url=https://rutracker.org/forum/viewtopic.php?t=%s&rhash=4625e276e6dfbf", items[i].TopicId)
 		nextItem := fmt.Sprintf("%s\n<b>Size:%s</b>,Seeds:%s,%s\n/%s			<a href=\"%s\">details</a>\n\n",
@@ -30,7 +25,7 @@ func convertItemsToText(items []rutracker.TorrentItem) []string {
 			lines = ""
 		}
 
-		lines += nextItem
+		lines = nextItem + lines
 	}
 
 	if len(lines) > 0 {

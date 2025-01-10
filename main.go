@@ -44,7 +44,7 @@ func safeCall(f func(), onError func(string)) {
 }
 
 func main() {
-	version := "Telegram downloader version 16"
+	version := "Telegram downloader version 17"
 	fmt.Println(version)
 	envConfig, envError := config.Read()
 	if envError != nil {
@@ -350,8 +350,19 @@ func searchTorrent(originalMessage *bot.Info, searchText string, outputChannel c
 						// outputChannel <- reply
 					} else {
 						textBlocks := convertItemsToText(result.Items)
-						for _, textBlock := range textBlocks {
-							reply := bot.OutMessage{OriginalMessage: originalMessage, Text: textBlock, Html: true}
+						if len(textBlocks) > 1 {
+							outputChannel <- bot.OutMessage{OriginalMessage: originalMessage, Html: true, Text: textBlocks[0], UseInlineKeyboard: true, InlineKeyboard: bot.MessageActionKeyboard, ReplyCallback: func(data string) {
+								if data == bot.MessageMore {
+									reply := bot.OutMessage{OriginalMessage: originalMessage, Text: textBlocks[1], Html: true}
+									outputChannel <- reply
+								}
+
+								if data == bot.MessageProviderSearch {
+									searchJackett(searchText, originalMessage, outputChannel)
+								}
+							}}
+						} else {
+							reply := bot.OutMessage{OriginalMessage: originalMessage, Text: textBlocks[0], Html: true}
 							outputChannel <- reply
 						}
 
